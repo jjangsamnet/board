@@ -18,20 +18,31 @@ function generateId(): string {
 
 const BOARDS_COLLECTION = 'boards';
 
-// Convert Board to Firestore-safe format (no Date objects)
+// Remove undefined values (Firestore doesn't accept undefined)
+function removeUndefined(obj: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
+// Convert Board to Firestore-safe format (no Date objects, no undefined values)
 function boardToFirestore(board: Board) {
-  return {
+  return removeUndefined({
     ...board,
     createdAt: board.createdAt.toISOString(),
-    posts: board.posts.map(p => ({
+    posts: board.posts.map(p => removeUndefined({
       ...p,
       createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
-      comments: p.comments.map(c => ({
+      comments: (p.comments || []).map(c => removeUndefined({
         ...c,
         createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : c.createdAt,
       })),
     })),
-  };
+  });
 }
 
 // Convert Firestore data back to Board with Dates
@@ -127,7 +138,7 @@ export function useBoard(boardId: string, currentUser: string = '익명') {
   const saveBoard = useCallback(async (updatedBoard: Board) => {
     try {
       const data = boardToFirestore(updatedBoard);
-      console.log('[saveBoard] 저장 시도:', boardId, '포스트 수:', data.posts?.length);
+      console.log('[saveBoard] 저장 시도:', boardId, '포스트 수:', (data.posts as unknown[])?.length);
       await setDoc(doc(db, BOARDS_COLLECTION, boardId), data);
       console.log('[saveBoard] 저장 성공');
     } catch (error) {
