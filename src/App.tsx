@@ -1,15 +1,67 @@
 import { useState, useEffect } from 'react';
 import type { BoardSettings } from './types';
-import { useBoard } from './store';
+import { useBoardManager, useBoard } from './store';
+import { Dashboard } from './components/Dashboard';
 import { BoardHeader } from './components/BoardHeader';
 import { BoardView } from './components/BoardView';
 import { CreatePostDialog } from './components/CreatePostDialog';
+import { ShareDialog } from './components/ShareDialog';
 import { CursorsOverlay, useSimulatedUsers } from './components/OnlineUsers';
 import { Toaster, toast } from 'sonner';
 
+// Simple hash-based router
+function useHashRouter() {
+  const [hash, setHash] = useState(window.location.hash);
+
+  useEffect(() => {
+    const onHashChange = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  const navigate = (path: string) => {
+    window.location.hash = path;
+  };
+
+  // Parse route: #/b/:boardId
+  const match = hash.match(/^#\/b\/(.+)$/);
+  const boardId = match ? match[1] : null;
+
+  return { boardId, navigate };
+}
+
 export default function App() {
-  const { board, addPost, deletePost, toggleReaction, addComment, updateBoard } = useBoard();
+  const { boardId, navigate } = useHashRouter();
+
+  if (boardId) {
+    return <BoardPage boardId={boardId} onBack={() => navigate('/')} />;
+  }
+
+  return <DashboardPage onOpenBoard={(id) => navigate(`/b/${id}`)} />;
+}
+
+// Dashboard page
+function DashboardPage({ onOpenBoard }: { onOpenBoard: (id: string) => void }) {
+  const { boards, createBoard, deleteBoard } = useBoardManager();
+
+  return (
+    <>
+      <Dashboard
+        boards={boards}
+        onCreateBoard={createBoard}
+        onDeleteBoard={deleteBoard}
+        onOpenBoard={onOpenBoard}
+      />
+      <Toaster />
+    </>
+  );
+}
+
+// Individual board page
+function BoardPage({ boardId, onBack }: { boardId: string; onBack: () => void }) {
+  const { board, addPost, deletePost, toggleReaction, addComment, updateBoard } = useBoard(boardId);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const { activeCount } = useSimulatedUsers();
   const [showCursors, setShowCursors] = useState(true);
 
@@ -36,6 +88,22 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, []);
+
+  if (!board) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+        <div className="text-6xl">😢</div>
+        <h2 className="text-xl font-semibold text-gray-700">보드를 찾을 수 없습니다</h2>
+        <p className="text-gray-500 text-sm">삭제되었거나 잘못된 주소입니다.</p>
+        <button
+          onClick={onBack}
+          className="mt-2 px-4 py-2 bg-rose-500 text-white rounded-lg text-sm hover:bg-rose-600 transition-colors"
+        >
+          대시보드로 돌아가기
+        </button>
+      </div>
+    );
+  }
 
   const handleSettingsChange = (updates: Partial<BoardSettings>) => {
     updateBoard({ settings: { ...board.settings, ...updates } });
@@ -65,6 +133,8 @@ export default function App() {
         onTitleChange={(title) => updateBoard({ title })}
         onDescChange={(description) => updateBoard({ description })}
         onSettingsChange={handleSettingsChange}
+        onShare={() => setShowShareDialog(true)}
+        onBack={onBack}
         activeUsers={activeCount}
       />
 
@@ -90,6 +160,13 @@ export default function App() {
           addPost(type, title, content, extras);
           toast('새 포스트가 추가되었습니다!', { position: 'bottom-right', duration: 2000 });
         }}
+      />
+
+      <ShareDialog
+        open={showShareDialog}
+        onClose={() => setShowShareDialog(false)}
+        boardId={board.id}
+        boardTitle={board.title}
       />
 
       {/* Cursor toggle */}

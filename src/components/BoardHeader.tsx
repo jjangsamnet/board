@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, LayoutGrid, List, Columns, Settings, Users, Share2, Pencil, Check, Shield } from 'lucide-react';
+import { Plus, LayoutGrid, List, Columns, Settings, Users, Share2, Pencil, Check, Shield, ArrowLeft } from 'lucide-react';
 
 interface BoardHeaderProps {
   board: Board;
@@ -29,12 +29,14 @@ interface BoardHeaderProps {
   onTitleChange: (title: string) => void;
   onDescChange: (desc: string) => void;
   onSettingsChange: (settings: Partial<BoardSettings>) => void;
+  onShare: () => void;
+  onBack: () => void;
   activeUsers: number;
 }
 
 export function BoardHeader({
   board, onAddPost, onLayoutChange, onWallpaperChange,
-  onTitleChange, onDescChange: _onDescChange, onSettingsChange, activeUsers,
+  onTitleChange, onDescChange: _onDescChange, onSettingsChange, onShare, onBack, activeUsers,
 }: BoardHeaderProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(board.title);
@@ -51,6 +53,17 @@ export function BoardHeader({
     <>
       <header className={`sticky top-0 z-30 backdrop-blur-md border-b ${isDarkWallpaper ? 'bg-black/30 border-white/10' : 'bg-white/70 border-gray-200'}`}>
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+          {/* Back button */}
+          <button
+            onClick={onBack}
+            className={`p-1.5 rounded-lg transition-colors shrink-0 ${
+              isDarkWallpaper ? 'hover:bg-white/10 text-white/70' : 'hover:bg-gray-100 text-gray-500'
+            }`}
+            title="대시보드로 돌아가기"
+          >
+            <ArrowLeft size={18} />
+          </button>
+
           {/* Title area */}
           <div className="flex-1 min-w-0">
             {editingTitle ? (
@@ -83,7 +96,6 @@ export function BoardHeader({
               <p className={`text-xs truncate ${isDarkWallpaper ? 'text-white/60' : 'text-gray-500'}`}>
                 {board.description} · 포스트 {board.posts.length}개
               </p>
-              {/* Status badges */}
               {!board.settings.allowComments && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">댓글 OFF</span>
               )}
@@ -158,7 +170,12 @@ export function BoardHeader({
           </DropdownMenu>
 
           {/* Share button */}
-          <Button variant="outline" size="sm" className={`hidden sm:flex gap-1.5 ${isDarkWallpaper ? 'border-white/20 text-white hover:bg-white/10' : ''}`}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onShare}
+            className={`hidden sm:flex gap-1.5 ${isDarkWallpaper ? 'border-white/20 text-white hover:bg-white/10' : ''}`}
+          >
             <Share2 size={14} />
             공유
           </Button>

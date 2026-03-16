@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { Board, Post, PostType, ReactionType } from './types';
 import { CARD_COLORS, REACTION_TYPES } from './types';
 
@@ -6,84 +6,91 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
-const SAMPLE_POSTS: Post[] = [
-  {
-    id: generateId(),
-    type: 'text',
-    title: '환영합니다!',
-    content: '공유 보드에 오신 것을 환영합니다. 자유롭게 포스트를 작성해보세요.',
-    author: '선생님',
-    color: CARD_COLORS[0],
-    reactions: REACTION_TYPES.map(type => ({ type, count: type === '👍' ? 3 : type === '❤️' ? 2 : 0, userReacted: false })),
-    comments: [{ id: generateId(), author: '학생1', content: '안녕하세요!', createdAt: new Date() }],
-    createdAt: new Date(),
-  },
-  {
-    id: generateId(),
-    type: 'image',
-    title: '오늘의 학습 주제',
-    content: '태양계의 행성들에 대해 알아봅시다.',
-    imageUrl: 'https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=400&h=300&fit=crop',
-    author: '선생님',
-    color: CARD_COLORS[1],
-    reactions: REACTION_TYPES.map(type => ({ type, count: type === '⭐' ? 5 : 0, userReacted: false })),
-    comments: [],
-    createdAt: new Date(Date.now() - 3600000),
-  },
-  {
-    id: generateId(),
-    type: 'link',
-    title: '참고 자료',
-    content: '태양계에 대한 재미있는 영상입니다.',
-    linkUrl: 'https://www.youtube.com/watch?v=libKVRa01L8',
-    author: '학생2',
-    color: CARD_COLORS[2],
-    reactions: REACTION_TYPES.map(type => ({ type, count: 0, userReacted: false })),
-    comments: [],
-    createdAt: new Date(Date.now() - 7200000),
-  },
-  {
-    id: generateId(),
-    type: 'text',
-    title: '수성은 가장 작은 행성',
-    content: '수성은 태양계에서 가장 작은 행성이며, 태양에 가장 가까운 행성입니다. 표면 온도는 낮에 430°C까지 올라갑니다.',
-    author: '학생3',
-    color: CARD_COLORS[3],
-    reactions: REACTION_TYPES.map(type => ({ type, count: type === '😄' ? 1 : 0, userReacted: false })),
-    comments: [{ id: generateId(), author: '선생님', content: '잘 조사했어요!', createdAt: new Date() }],
-    createdAt: new Date(Date.now() - 5400000),
-  },
-  {
-    id: generateId(),
-    type: 'text',
-    title: '지구 - 우리의 행성',
-    content: '지구는 태양계에서 유일하게 생명체가 살고 있는 것으로 알려진 행성입니다. 달이라는 하나의 위성을 가지고 있습니다.',
-    author: '학생1',
-    color: CARD_COLORS[4],
-    reactions: REACTION_TYPES.map(type => ({ type, count: type === '👍' ? 4 : type === '❤️' ? 6 : 0, userReacted: false })),
-    comments: [],
-    createdAt: new Date(Date.now() - 1800000),
-  },
-];
+// localStorage helpers
+function loadBoards(): Board[] {
+  try {
+    const raw = localStorage.getItem('shared-boards');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed.map((b: Board) => ({
+        ...b,
+        createdAt: new Date(b.createdAt),
+        posts: b.posts.map((p: Post) => ({
+          ...p,
+          createdAt: new Date(p.createdAt),
+          comments: p.comments.map(c => ({ ...c, createdAt: new Date(c.createdAt) })),
+        })),
+      }));
+    }
+  } catch { /* ignore */ }
+  return [];
+}
 
-const DEFAULT_BOARD: Board = {
-  id: generateId(),
-  title: '🪐 태양계 탐구 보드',
-  description: '태양계의 행성들에 대해 함께 알아봅시다!',
-  layout: 'wall',
-  wallpaper: 'bg-gray-50',
-  posts: SAMPLE_POSTS,
-  settings: {
-    allowComments: true,
-    allowReactions: true,
-    allowAnonymous: false,
-  },
-  createdAt: new Date(),
-};
+function saveBoards(boards: Board[]) {
+  try {
+    localStorage.setItem('shared-boards', JSON.stringify(boards));
+  } catch { /* ignore */ }
+}
 
-export function useBoard() {
-  const [board, setBoard] = useState<Board>(DEFAULT_BOARD);
+// Multi-board management hook
+export function useBoardManager() {
+  const [boards, setBoards] = useState<Board[]>(() => loadBoards());
+
+  useEffect(() => {
+    saveBoards(boards);
+  }, [boards]);
+
+  const createBoard = useCallback((title: string, description: string) => {
+    const newBoard: Board = {
+      id: generateId(),
+      title,
+      description,
+      layout: 'wall',
+      wallpaper: 'bg-gray-50',
+      posts: [],
+      settings: {
+        allowComments: true,
+        allowReactions: true,
+        allowAnonymous: false,
+      },
+      createdAt: new Date(),
+    };
+    setBoards(prev => [newBoard, ...prev]);
+    return newBoard.id;
+  }, []);
+
+  const deleteBoard = useCallback((boardId: string) => {
+    setBoards(prev => prev.filter(b => b.id !== boardId));
+  }, []);
+
+  return { boards, createBoard, deleteBoard };
+}
+
+// Single board operations hook
+export function useBoard(boardId: string) {
+  const [boards, setBoards] = useState<Board[]>(() => loadBoards());
   const [currentUser] = useState('나');
+  const board = boards.find(b => b.id === boardId) || null;
+
+  useEffect(() => {
+    saveBoards(boards);
+  }, [boards]);
+
+  // Sync with localStorage changes from other components
+  useEffect(() => {
+    const handleStorage = () => {
+      setBoards(loadBoards());
+    };
+    window.addEventListener('boards-updated', handleStorage);
+    return () => window.removeEventListener('boards-updated', handleStorage);
+  }, []);
+
+  const updateBoardInList = useCallback((updater: (board: Board) => Board) => {
+    setBoards(prev => {
+      const updated = prev.map(b => b.id === boardId ? updater(b) : b);
+      return updated;
+    });
+  }, [boardId]);
 
   const addPost = useCallback((type: PostType, title: string, content: string, extras?: { imageUrl?: string; linkUrl?: string; videoUrl?: string }) => {
     const newPost: Post = {
@@ -98,17 +105,17 @@ export function useBoard() {
       comments: [],
       createdAt: new Date(),
     };
-    setBoard(prev => ({ ...prev, posts: [newPost, ...prev.posts] }));
-  }, [currentUser]);
+    updateBoardInList(b => ({ ...b, posts: [newPost, ...b.posts] }));
+  }, [currentUser, updateBoardInList]);
 
   const deletePost = useCallback((postId: string) => {
-    setBoard(prev => ({ ...prev, posts: prev.posts.filter(p => p.id !== postId) }));
-  }, []);
+    updateBoardInList(b => ({ ...b, posts: b.posts.filter(p => p.id !== postId) }));
+  }, [updateBoardInList]);
 
   const toggleReaction = useCallback((postId: string, reactionType: ReactionType) => {
-    setBoard(prev => ({
-      ...prev,
-      posts: prev.posts.map(post => {
+    updateBoardInList(b => ({
+      ...b,
+      posts: b.posts.map(post => {
         if (post.id !== postId) return post;
         return {
           ...post,
@@ -123,7 +130,7 @@ export function useBoard() {
         };
       }),
     }));
-  }, []);
+  }, [updateBoardInList]);
 
   const addComment = useCallback((postId: string, content: string) => {
     const newComment = {
@@ -132,18 +139,18 @@ export function useBoard() {
       content,
       createdAt: new Date(),
     };
-    setBoard(prev => ({
-      ...prev,
-      posts: prev.posts.map(post => {
+    updateBoardInList(b => ({
+      ...b,
+      posts: b.posts.map(post => {
         if (post.id !== postId) return post;
         return { ...post, comments: [...post.comments, newComment] };
       }),
     }));
-  }, [currentUser]);
+  }, [currentUser, updateBoardInList]);
 
   const updateBoard = useCallback((updates: Partial<Board>) => {
-    setBoard(prev => ({ ...prev, ...updates }));
-  }, []);
+    updateBoardInList(b => ({ ...b, ...updates }));
+  }, [updateBoardInList]);
 
   return { board, addPost, deletePost, toggleReaction, addComment, updateBoard };
 }
