@@ -71,7 +71,7 @@ export function useBoardManager() {
     return () => unsub();
   }, []);
 
-  const createBoard = useCallback((title: string, description: string) => {
+  const createBoard = useCallback(async (title: string, description: string) => {
     const id = generateId();
     const newBoard: Board = {
       id,
@@ -87,7 +87,12 @@ export function useBoardManager() {
       },
       createdAt: new Date(),
     };
-    setDoc(doc(db, BOARDS_COLLECTION, id), boardToFirestore(newBoard));
+    try {
+      await setDoc(doc(db, BOARDS_COLLECTION, id), boardToFirestore(newBoard));
+      console.log('[createBoard] 보드 생성 성공:', id);
+    } catch (error) {
+      console.error('[createBoard] 보드 생성 실패:', error);
+    }
     return id;
   }, []);
 
@@ -119,12 +124,23 @@ export function useBoard(boardId: string, currentUser: string = '익명') {
   }, [boardId]);
 
   // Save board to Firestore
-  const saveBoard = useCallback((updatedBoard: Board) => {
-    setDoc(doc(db, BOARDS_COLLECTION, boardId), boardToFirestore(updatedBoard));
+  const saveBoard = useCallback(async (updatedBoard: Board) => {
+    try {
+      const data = boardToFirestore(updatedBoard);
+      console.log('[saveBoard] 저장 시도:', boardId, '포스트 수:', data.posts?.length);
+      await setDoc(doc(db, BOARDS_COLLECTION, boardId), data);
+      console.log('[saveBoard] 저장 성공');
+    } catch (error) {
+      console.error('[saveBoard] 저장 실패:', error);
+    }
   }, [boardId]);
 
   const addPost = useCallback((type: PostType, title: string, content: string, extras?: { imageUrl?: string; linkUrl?: string; videoUrl?: string }) => {
-    if (!board) return;
+    console.log('[addPost] 호출됨:', { type, title, content, hasBoard: !!board, currentUser });
+    if (!board) {
+      console.error('[addPost] board가 null입니다!');
+      return;
+    }
     const newPost: Post = {
       id: generateId(),
       type,
@@ -137,6 +153,7 @@ export function useBoard(boardId: string, currentUser: string = '익명') {
       comments: [],
       createdAt: new Date(),
     };
+    console.log('[addPost] 새 포스트:', newPost);
     const updated = { ...board, posts: [newPost, ...board.posts] };
     saveBoard(updated);
   }, [board, currentUser, saveBoard]);

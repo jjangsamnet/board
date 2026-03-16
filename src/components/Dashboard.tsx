@@ -13,7 +13,7 @@ import { Plus, Trash2, LayoutGrid, Clock, FileText, LogOut } from 'lucide-react'
 
 interface DashboardProps {
   boards: Board[];
-  onCreateBoard: (title: string, description: string) => string;
+  onCreateBoard: (title: string, description: string) => string | Promise<string>;
   onDeleteBoard: (boardId: string) => void;
   onOpenBoard: (boardId: string) => void;
   userName: string;
@@ -27,9 +27,9 @@ export function Dashboard({ boards, onCreateBoard, onDeleteBoard, onOpenBoard, u
   const [description, setDescription] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!title.trim()) return;
-    const id = onCreateBoard(title.trim(), description.trim());
+    const id = await onCreateBoard(title.trim(), description.trim());
     setTitle('');
     setDescription('');
     setShowCreate(false);
