@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { PostType } from '../types';
+import type { PostType } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

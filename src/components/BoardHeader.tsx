@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Board, BoardSettings, LayoutMode, WALLPAPERS } from '../types';
+import type { Board, BoardSettings, LayoutMode } from '../types';
+import { WALLPAPERS } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -33,7 +34,7 @@ interface BoardHeaderProps {
 
 export function BoardHeader({
   board, onAddPost, onLayoutChange, onWallpaperChange,
-  onTitleChange, onDescChange, onSettingsChange, activeUsers,
+  onTitleChange, onDescChange: _onDescChange, onSettingsChange, activeUsers,
 }: BoardHeaderProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(board.title);

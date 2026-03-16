@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BoardSettings } from './types';
+import type { BoardSettings } from './types';
 import { useBoard } from './store';
 import { BoardHeader } from './components/BoardHeader';
 import { BoardView } from './components/BoardView';

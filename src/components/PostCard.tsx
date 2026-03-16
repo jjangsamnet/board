@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Post, ReactionType } from '../types';
+import type { Post, ReactionType } from '../types';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,8 +35,6 @@ export function PostCard({ post, onReaction, onComment, onDelete, compact, allow
     if (hours < 24) return `${hours}시간 전`;
     return `${Math.floor(hours / 24)}일 전`;
   };
-
-  const darkWallpaper = false;
 
   return (
     <Card

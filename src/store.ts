@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { Board, Post, PostType, CARD_COLORS, REACTION_TYPES, ReactionType } from './types';
+import type { Board, Post, PostType, ReactionType } from './types';
+import { CARD_COLORS, REACTION_TYPES } from './types';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);

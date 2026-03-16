@@ -1,4 +1,4 @@
-import { Post, LayoutMode, ReactionType, BoardSettings } from '../types';
+import type { Post, LayoutMode, ReactionType, BoardSettings } from '../types';
 import { PostCard } from './PostCard';
 
 interface BoardViewProps {
