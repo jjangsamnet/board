@@ -152,6 +152,7 @@ export default function App() {
         onBack={() => navigate('/')}
         userName={displayName}
         userPhoto={photoURL}
+        userId={user.uid}
         onLogout={logout}
       />
     );
@@ -245,12 +246,14 @@ function BoardPage({
   onBack,
   userName,
   userPhoto,
+  userId,
   onLogout,
 }: {
   boardId: string;
   onBack: () => void;
   userName: string;
   userPhoto?: string;
+  userId: string;
   onLogout: () => void;
 }) {
   const { board, loading, addPost, deletePost, toggleReaction, addComment, updateBoard } = useBoard(boardId, userName);
@@ -333,6 +336,7 @@ function BoardPage({
       <CreatePostDialog
         open={showCreateDialog}
         onClose={() => setShowCreateDialog(false)}
+        userId={userId}
         onSubmit={(type, title, content, extras) => {
           addPost(type, title, content, extras);
           toast('새 포스트가 추가되었습니다!', { position: 'bottom-right', duration: 2000 });

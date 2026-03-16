@@ -6,77 +6,59 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Type, Image, Link, Video, ClipboardPaste, X, Upload, Loader2 } from 'lucide-react';
-
-const MAX_IMAGE_WIDTH = 800;
-const MAX_IMAGE_HEIGHT = 800;
-const IMAGE_QUALITY = 0.7;
-
-// Compress and resize image using canvas
-function compressImage(file: File | Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      let { width, height } = img;
-
-      // Scale down if needed
-      if (width > MAX_IMAGE_WIDTH || height > MAX_IMAGE_HEIGHT) {
-        const ratio = Math.min(MAX_IMAGE_WIDTH / width, MAX_IMAGE_HEIGHT / height);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas context unavailable'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL('image/jpeg', IMAGE_QUALITY);
-      resolve(dataUrl);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('이미지를 읽을 수 없습니다'));
-    };
-    img.src = url;
-  });
-}
+import { uploadImageToStorage } from '../uploadImage';
 
 interface CreatePostDialogProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (type: PostType, title: string, content: string, extras?: { imageUrl?: string; linkUrl?: string; videoUrl?: string }) => void;
+  userId?: string;
 }
 
-export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogProps) {
+export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePostDialogProps) {
   const [postType, setPostType] = useState<PostType>('text');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
-  const [pastedImage, setPastedImage] = useState<string | null>(null);
-  const [pasteHint, setPasteHint] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | Blob | null>(null);
   const [imageLabel, setImageLabel] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pasteHint, setPasteHint] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = () => {
-    if (!title.trim() && !content.trim() && !pastedImage) return;
-    const finalImageUrl = pastedImage || imageUrl.trim() || undefined;
-    const finalType = pastedImage ? 'image' : postType;
-    onSubmit(finalType, title.trim(), content.trim(), {
-      imageUrl: finalImageUrl,
-      linkUrl: linkUrl.trim() || undefined,
-      videoUrl: videoUrl.trim() || undefined,
-    });
-    resetForm();
-    onClose();
+  const handleSubmit = async () => {
+    if (!title.trim() && !content.trim() && !previewImage && !imageUrl.trim()) return;
+    setUploading(true);
+
+    try {
+      let finalImageUrl: string | undefined;
+
+      // If we have a file to upload, send to Firebase Storage
+      if (uploadedFile && userId) {
+        finalImageUrl = await uploadImageToStorage(uploadedFile, userId);
+      } else if (imageUrl.trim()) {
+        finalImageUrl = imageUrl.trim();
+      }
+
+      const finalType = finalImageUrl && postType !== 'link' && postType !== 'video' ? 'image' : postType;
+
+      onSubmit(finalType, title.trim(), content.trim(), {
+        imageUrl: finalImageUrl,
+        linkUrl: linkUrl.trim() || undefined,
+        videoUrl: videoUrl.trim() || undefined,
+      });
+
+      resetForm();
+      onClose();
+    } catch (err) {
+      console.error('포스트 게시 실패:', err);
+      alert('이미지 업로드에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const resetForm = () => {
@@ -85,26 +67,21 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
     setImageUrl('');
     setLinkUrl('');
     setVideoUrl('');
-    setPastedImage(null);
+    setPreviewImage(null);
+    setUploadedFile(null);
     setImageLabel(null);
     setPostType('text');
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Process image file (from file input, paste, or drop)
-  const processImageFile = useCallback(async (file: File | Blob, label: string) => {
-    setUploading(true);
-    try {
-      const dataUrl = await compressImage(file);
-      setPastedImage(dataUrl);
-      setImageLabel(label);
-      setPostType('image');
-    } catch (err) {
-      console.error('이미지 처리 실패:', err);
-    } finally {
-      setUploading(false);
-    }
+  // Create local preview from file
+  const previewFile = useCallback((file: File | Blob, label: string) => {
+    setUploadedFile(file);
+    setImageLabel(label);
+    setPostType('image');
+    const url = URL.createObjectURL(file);
+    setPreviewImage(url);
   }, []);
 
   // Handle file input change
@@ -116,8 +93,8 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
       return;
     }
     const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-    processImageFile(file, `${file.name} (${sizeMB}MB)`);
-  }, [processImageFile]);
+    previewFile(file, `${file.name} (${sizeMB}MB)`);
+  }, [previewFile]);
 
   // Handle drag & drop
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -126,20 +103,18 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith('image/')) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      processImageFile(file, `${file.name} (${sizeMB}MB)`);
+      previewFile(file, `${file.name} (${sizeMB}MB)`);
     }
-  }, [processImageFile]);
+  }, [previewFile]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
   }, []);
 
-  // Handle paste from clipboard (images and text)
+  // Handle paste from clipboard
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const clipboardData = e.clipboardData;
-
-    // Check for pasted images
     const items = clipboardData.items;
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -147,13 +122,12 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
         e.preventDefault();
         const file = item.getAsFile();
         if (file) {
-          processImageFile(file, '클립보드에서 붙여넣음');
+          previewFile(file, '클립보드에서 붙여넣음');
         }
         return;
       }
     }
 
-    // Check for pasted text that looks like a URL
     const pastedText = clipboardData.getData('text/plain').trim();
     if (pastedText && isUrl(pastedText)) {
       if (isImageUrl(pastedText)) {
@@ -167,7 +141,7 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
         setPostType('link');
       }
     }
-  }, [processImageFile]);
+  }, [previewFile]);
 
   const handlePasteButton = async () => {
     try {
@@ -176,23 +150,16 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
         const imageType = item.types.find(t => t.startsWith('image/'));
         if (imageType) {
           const blob = await item.getType(imageType);
-          processImageFile(blob, '클립보드에서 붙여넣음');
+          previewFile(blob, '클립보드에서 붙여넣음');
           return;
         }
         if (item.types.includes('text/plain')) {
           const blob = await item.getType('text/plain');
           const text = await blob.text();
           if (isUrl(text.trim())) {
-            if (isImageUrl(text.trim())) {
-              setImageUrl(text.trim());
-              setPostType('image');
-            } else if (isVideoUrl(text.trim())) {
-              setVideoUrl(text.trim());
-              setPostType('video');
-            } else {
-              setLinkUrl(text.trim());
-              setPostType('link');
-            }
+            if (isImageUrl(text.trim())) { setImageUrl(text.trim()); setPostType('image'); }
+            else if (isVideoUrl(text.trim())) { setVideoUrl(text.trim()); setPostType('video'); }
+            else { setLinkUrl(text.trim()); setPostType('link'); }
           } else {
             setContent(prev => prev ? prev + '\n' + text : text);
           }
@@ -203,12 +170,8 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
       try {
         const text = await navigator.clipboard.readText();
         if (text) {
-          if (isUrl(text.trim())) {
-            setLinkUrl(text.trim());
-            setPostType('link');
-          } else {
-            setContent(prev => prev ? prev + '\n' + text : text);
-          }
+          if (isUrl(text.trim())) { setLinkUrl(text.trim()); setPostType('link'); }
+          else { setContent(prev => prev ? prev + '\n' + text : text); }
         }
       } catch {
         setPasteHint(true);
@@ -217,12 +180,22 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
     }
   };
 
+  const clearImage = () => {
+    if (previewImage) URL.revokeObjectURL(previewImage);
+    setPreviewImage(null);
+    setUploadedFile(null);
+    setImageLabel(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const tabs = [
     { value: 'text', label: '텍스트', icon: Type },
     { value: 'image', label: '이미지', icon: Image },
     { value: 'link', label: '링크', icon: Link },
     { value: 'video', label: '동영상', icon: Video },
   ] as const;
+
+  const hasContent = title.trim() || content.trim() || previewImage || imageUrl.trim();
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { resetForm(); onClose(); } }}>
@@ -258,16 +231,12 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
           </TabsList>
 
           <div className="mt-4 space-y-3">
-            {/* Image preview (from file upload, paste, or drop) */}
-            {pastedImage && (
+            {/* Image preview */}
+            {previewImage && (
               <div className="relative">
-                <img src={pastedImage} alt="업로드된 이미지" className="w-full h-40 object-cover rounded-lg border" />
+                <img src={previewImage} alt="업로드 이미지" className="w-full h-40 object-cover rounded-lg border" />
                 <button
-                  onClick={() => {
-                    setPastedImage(null);
-                    setImageLabel(null);
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                  }}
+                  onClick={clearImage}
                   className="absolute top-1.5 right-1.5 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
                 >
                   <X size={14} />
@@ -275,14 +244,6 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
                 <span className="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
                   {imageLabel || '이미지'}
                 </span>
-              </div>
-            )}
-
-            {/* Uploading indicator */}
-            {uploading && (
-              <div className="flex items-center justify-center gap-2 py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                <Loader2 size={18} className="animate-spin text-rose-500" />
-                <span className="text-sm text-gray-500">이미지 처리 중...</span>
               </div>
             )}
 
@@ -302,7 +263,7 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
             />
 
             <TabsContent value="image" className="mt-0 space-y-2">
-              {!pastedImage && !uploading && (
+              {!previewImage && (
                 <>
                   {/* File upload area */}
                   <div
@@ -315,7 +276,7 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
                       클릭하여 선택하거나, 이 영역에 드래그 앤 드롭
                     </p>
                     <p className="text-xs text-gray-400">
-                      JPG, PNG, GIF, WebP (자동 리사이즈)
+                      JPG, PNG, GIF, WebP (최대 5MB, 자동 리사이즈)
                     </p>
                   </div>
                   <input
@@ -326,7 +287,6 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
                     className="hidden"
                   />
 
-                  {/* Or enter URL */}
                   <div className="flex items-center gap-2 text-xs text-gray-400">
                     <div className="flex-1 h-px bg-gray-200" />
                     <span>또는 URL 입력</span>
@@ -368,8 +328,13 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
 
         <div className="flex justify-end gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={() => { resetForm(); onClose(); }}>취소</Button>
-          <Button size="sm" onClick={handleSubmit} disabled={uploading || (!title.trim() && !content.trim() && !pastedImage)}>
-            {uploading ? '처리 중...' : '게시하기'}
+          <Button size="sm" onClick={handleSubmit} disabled={uploading || !hasContent}>
+            {uploading ? (
+              <span className="flex items-center gap-1.5">
+                <Loader2 size={14} className="animate-spin" />
+                업로드 중...
+              </span>
+            ) : '게시하기'}
           </Button>
         </div>
       </DialogContent>
