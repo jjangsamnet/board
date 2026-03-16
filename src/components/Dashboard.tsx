@@ -9,16 +9,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Trash2, LayoutGrid, Clock, FileText } from 'lucide-react';
+import { Plus, Trash2, LayoutGrid, Clock, FileText, LogOut } from 'lucide-react';
 
 interface DashboardProps {
   boards: Board[];
   onCreateBoard: (title: string, description: string) => string;
   onDeleteBoard: (boardId: string) => void;
   onOpenBoard: (boardId: string) => void;
+  userName: string;
+  userPhoto?: string;
+  onLogout: () => void;
 }
 
-export function Dashboard({ boards, onCreateBoard, onDeleteBoard, onOpenBoard }: DashboardProps) {
+export function Dashboard({ boards, onCreateBoard, onDeleteBoard, onOpenBoard, userName, userPhoto, onLogout }: DashboardProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -80,10 +83,26 @@ export function Dashboard({ boards, onCreateBoard, onDeleteBoard, onOpenBoard }:
               <p className="text-xs text-gray-500">패들렛 스타일 공유 보드</p>
             </div>
           </div>
-          <Button onClick={() => setShowCreate(true)} className="gap-2 bg-rose-500 hover:bg-rose-600 text-white">
-            <Plus size={16} />
-            <span>새 보드 만들기</span>
-          </Button>
+          <div className="flex items-center gap-3">
+            {/* User profile */}
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-xs text-gray-600">
+              {userPhoto ? (
+                <img src={userPhoto} alt="" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-rose-400 flex items-center justify-center text-white text-[10px] font-bold">
+                  {userName.charAt(0)}
+                </div>
+              )}
+              <span className="max-w-[100px] truncate">{userName}</span>
+              <button onClick={onLogout} className="ml-1 opacity-60 hover:opacity-100" title="로그아웃">
+                <LogOut size={12} />
+              </button>
+            </div>
+            <Button onClick={() => setShowCreate(true)} className="gap-2 bg-rose-500 hover:bg-rose-600 text-white">
+              <Plus size={16} />
+              <span>새 보드 만들기</span>
+            </Button>
+          </div>
         </div>
       </header>
 

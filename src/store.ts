@@ -99,10 +99,9 @@ export function useBoardManager() {
 }
 
 // Single board operations hook (for board page)
-export function useBoard(boardId: string) {
+export function useBoard(boardId: string, currentUser: string = '익명') {
   const [board, setBoard] = useState<Board | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentUser] = useState('나');
 
   // Real-time listener for single board
   useEffect(() => {

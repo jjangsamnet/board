@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, LayoutGrid, List, Columns, Settings, Users, Share2, Pencil, Check, Shield, ArrowLeft } from 'lucide-react';
+import { Plus, LayoutGrid, List, Columns, Settings, Share2, Pencil, Check, Shield, ArrowLeft, LogOut } from 'lucide-react';
 
 interface BoardHeaderProps {
   board: Board;
@@ -31,12 +31,14 @@ interface BoardHeaderProps {
   onSettingsChange: (settings: Partial<BoardSettings>) => void;
   onShare: () => void;
   onBack: () => void;
-  activeUsers: number;
+  userName: string;
+  userPhoto?: string;
+  onLogout: () => void;
 }
 
 export function BoardHeader({
   board, onAddPost, onLayoutChange, onWallpaperChange,
-  onTitleChange, onDescChange: _onDescChange, onSettingsChange, onShare, onBack, activeUsers,
+  onTitleChange, onDescChange: _onDescChange, onSettingsChange, onShare, onBack, userName, userPhoto, onLogout,
 }: BoardHeaderProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(board.title);
@@ -105,11 +107,19 @@ export function BoardHeader({
             </div>
           </div>
 
-          {/* Active users indicator */}
-          <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs ${isDarkWallpaper ? 'bg-white/10 text-white/70' : 'bg-green-50 text-green-700'}`}>
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <Users size={12} />
-            <span>{activeUsers}명 접속중</span>
+          {/* User profile */}
+          <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs ${isDarkWallpaper ? 'bg-white/10 text-white/70' : 'bg-gray-100 text-gray-600'}`}>
+            {userPhoto ? (
+              <img src={userPhoto} alt="" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="w-5 h-5 rounded-full bg-rose-400 flex items-center justify-center text-white text-[10px] font-bold">
+                {userName.charAt(0)}
+              </div>
+            )}
+            <span className="max-w-[80px] truncate">{userName}</span>
+            <button onClick={onLogout} className="ml-1 opacity-60 hover:opacity-100" title="로그아웃">
+              <LogOut size={12} />
+            </button>
           </div>
 
           {/* Layout selector */}
