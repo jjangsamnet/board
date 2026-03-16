@@ -1,11 +1,51 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { PostType } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Type, Image, Link, Video, ClipboardPaste, X } from 'lucide-react';
+import { Type, Image, Link, Video, ClipboardPaste, X, Upload, Loader2 } from 'lucide-react';
+
+const MAX_IMAGE_WIDTH = 800;
+const MAX_IMAGE_HEIGHT = 800;
+const IMAGE_QUALITY = 0.7;
+
+// Compress and resize image using canvas
+function compressImage(file: File | Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+
+      // Scale down if needed
+      if (width > MAX_IMAGE_WIDTH || height > MAX_IMAGE_HEIGHT) {
+        const ratio = Math.min(MAX_IMAGE_WIDTH / width, MAX_IMAGE_HEIGHT / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas context unavailable'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', IMAGE_QUALITY);
+      resolve(dataUrl);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('이미지를 읽을 수 없습니다'));
+    };
+    img.src = url;
+  });
+}
 
 interface CreatePostDialogProps {
   open: boolean;
@@ -22,6 +62,9 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
   const [videoUrl, setVideoUrl] = useState('');
   const [pastedImage, setPastedImage] = useState<string | null>(null);
   const [pasteHint, setPasteHint] = useState(false);
+  const [imageLabel, setImageLabel] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
     if (!title.trim() && !content.trim() && !pastedImage) return;
@@ -43,8 +86,54 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
     setLinkUrl('');
     setVideoUrl('');
     setPastedImage(null);
+    setImageLabel(null);
     setPostType('text');
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  // Process image file (from file input, paste, or drop)
+  const processImageFile = useCallback(async (file: File | Blob, label: string) => {
+    setUploading(true);
+    try {
+      const dataUrl = await compressImage(file);
+      setPastedImage(dataUrl);
+      setImageLabel(label);
+      setPostType('image');
+    } catch (err) {
+      console.error('이미지 처리 실패:', err);
+    } finally {
+      setUploading(false);
+    }
+  }, []);
+
+  // Handle file input change
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 업로드할 수 있습니다.');
+      return;
+    }
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    processImageFile(file, `${file.name} (${sizeMB}MB)`);
+  }, [processImageFile]);
+
+  // Handle drag & drop
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      processImageFile(file, `${file.name} (${sizeMB}MB)`);
+    }
+  }, [processImageFile]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
 
   // Handle paste from clipboard (images and text)
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -58,13 +147,7 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
         e.preventDefault();
         const file = item.getAsFile();
         if (file) {
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            const dataUrl = ev.target?.result as string;
-            setPastedImage(dataUrl);
-            setPostType('image');
-          };
-          reader.readAsDataURL(file);
+          processImageFile(file, '클립보드에서 붙여넣음');
         }
         return;
       }
@@ -73,7 +156,6 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
     // Check for pasted text that looks like a URL
     const pastedText = clipboardData.getData('text/plain').trim();
     if (pastedText && isUrl(pastedText)) {
-      // Don't prevent default — let it also paste into the focused input
       if (isImageUrl(pastedText)) {
         setImageUrl(pastedText);
         setPostType('image');
@@ -85,25 +167,18 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
         setPostType('link');
       }
     }
-  }, []);
+  }, [processImageFile]);
 
   const handlePasteButton = async () => {
     try {
       const clipboardItems = await navigator.clipboard.read();
       for (const item of clipboardItems) {
-        // Try image first
         const imageType = item.types.find(t => t.startsWith('image/'));
         if (imageType) {
           const blob = await item.getType(imageType);
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            setPastedImage(ev.target?.result as string);
-            setPostType('image');
-          };
-          reader.readAsDataURL(blob);
+          processImageFile(blob, '클립보드에서 붙여넣음');
           return;
         }
-        // Try text
         if (item.types.includes('text/plain')) {
           const blob = await item.getType('text/plain');
           const text = await blob.text();
@@ -125,7 +200,6 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
         }
       }
     } catch {
-      // Fallback: read text
       try {
         const text = await navigator.clipboard.readText();
         if (text) {
@@ -152,7 +226,7 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { resetForm(); onClose(); } }}>
-      <DialogContent className="sm:max-w-md" onPaste={handlePaste}>
+      <DialogContent className="sm:max-w-md" onPaste={handlePaste} onDrop={handleDrop} onDragOver={handleDragOver}>
         <DialogHeader>
           <DialogTitle className="text-lg flex items-center justify-between">
             새 포스트 작성
@@ -184,19 +258,31 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
           </TabsList>
 
           <div className="mt-4 space-y-3">
-            {/* Pasted image preview */}
+            {/* Image preview (from file upload, paste, or drop) */}
             {pastedImage && (
               <div className="relative">
-                <img src={pastedImage} alt="붙여넣은 이미지" className="w-full h-40 object-cover rounded-lg border" />
+                <img src={pastedImage} alt="업로드된 이미지" className="w-full h-40 object-cover rounded-lg border" />
                 <button
-                  onClick={() => setPastedImage(null)}
+                  onClick={() => {
+                    setPastedImage(null);
+                    setImageLabel(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
                   className="absolute top-1.5 right-1.5 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
                 >
                   <X size={14} />
                 </button>
                 <span className="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
-                  클립보드에서 붙여넣음
+                  {imageLabel || '이미지'}
                 </span>
+              </div>
+            )}
+
+            {/* Uploading indicator */}
+            {uploading && (
+              <div className="flex items-center justify-center gap-2 py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                <Loader2 size={18} className="animate-spin text-rose-500" />
+                <span className="text-sm text-gray-500">이미지 처리 중...</span>
               </div>
             )}
 
@@ -216,12 +302,41 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
             />
 
             <TabsContent value="image" className="mt-0 space-y-2">
-              {!pastedImage && (
+              {!pastedImage && !uploading && (
                 <>
+                  {/* File upload area */}
+                  <div
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-rose-400 hover:bg-rose-50/30 transition-colors cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload size={24} className="mx-auto text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 font-medium">이미지 파일 선택</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      클릭하여 선택하거나, 이 영역에 드래그 앤 드롭
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      JPG, PNG, GIF, WebP (자동 리사이즈)
+                    </p>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+
+                  {/* Or enter URL */}
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span>또는 URL 입력</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+
                   <Input
                     value={imageUrl}
                     onChange={e => setImageUrl(e.target.value)}
-                    placeholder="이미지 URL (https://...) 또는 Ctrl+V로 붙여넣기"
+                    placeholder="이미지 URL (https://...)"
                     className="text-sm"
                   />
                   {imageUrl && (
@@ -253,8 +368,8 @@ export function CreatePostDialog({ open, onClose, onSubmit }: CreatePostDialogPr
 
         <div className="flex justify-end gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={() => { resetForm(); onClose(); }}>취소</Button>
-          <Button size="sm" onClick={handleSubmit} disabled={!title.trim() && !content.trim() && !pastedImage}>
-            게시하기
+          <Button size="sm" onClick={handleSubmit} disabled={uploading || (!title.trim() && !content.trim() && !pastedImage)}>
+            {uploading ? '처리 중...' : '게시하기'}
           </Button>
         </div>
       </DialogContent>
