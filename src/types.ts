@@ -47,6 +47,20 @@ export interface Board {
   posts: Post[];
   settings: BoardSettings;
   createdAt: Date;
+  ownerEmail?: string;
+}
+
+export type UserRole = 'admin' | 'user';
+
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  role: UserRole;
+  maxBoards: number;
+  createdAt: string;
+  lastLoginAt: string;
 }
 
 export const CARD_COLORS = [

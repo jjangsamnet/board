@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import type { BoardSettings } from './types';
-import { useBoardManager, useBoard } from './store';
+import { useBoardManager, useBoard, useUserProfile, ensureUserProfile } from './store';
 import { useAuth } from './useAuth';
 import { Dashboard } from './components/Dashboard';
 import { BoardHeader } from './components/BoardHeader';
 import { BoardView } from './components/BoardView';
 import { CreatePostDialog } from './components/CreatePostDialog';
 import { ShareDialog } from './components/ShareDialog';
+import { AdminPage } from './components/AdminPage';
 import { Toaster, toast } from 'sonner';
 
 // Simple hash-based router
@@ -23,11 +24,12 @@ function useHashRouter() {
     window.location.hash = path;
   };
 
-  // Parse route: #/b/:boardId
-  const match = hash.match(/^#\/b\/(.+)$/);
-  const boardId = match ? match[1] : null;
+  // Parse routes
+  const boardMatch = hash.match(/^#\/b\/(.+)$/);
+  const boardId = boardMatch ? boardMatch[1] : null;
+  const isAdmin = hash === '#/admin';
 
-  return { boardId, navigate };
+  return { boardId, isAdmin, navigate };
 }
 
 // Login page
@@ -94,10 +96,23 @@ function LoginPage({ onLogin, loading: authLoading }: { onLogin: () => void; loa
 
 export default function App() {
   const { user, loading: authLoading, loginWithGoogle, logout } = useAuth();
-  const { boardId, navigate } = useHashRouter();
+  const { boardId, isAdmin, navigate } = useHashRouter();
+  const { profile, loading: profileLoading } = useUserProfile(user?.uid || null);
+
+  // Ensure user profile on login
+  useEffect(() => {
+    if (user && !profileLoading) {
+      ensureUserProfile(
+        user.uid,
+        user.email || '',
+        user.displayName || user.email || '사용자',
+        user.photoURL || undefined,
+      );
+    }
+  }, [user, profileLoading]);
 
   // Show auth loading
-  if (authLoading) {
+  if (authLoading || (user && profileLoading)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -115,6 +130,20 @@ export default function App() {
 
   const displayName = user.displayName || user.email || '사용자';
   const photoURL = user.photoURL || undefined;
+  const userEmail = user.email || '';
+  const isAdminUser = profile?.role === 'admin';
+  const maxBoards = profile?.maxBoards ?? 3;
+
+  // Admin page route
+  if (isAdmin && isAdminUser) {
+    return (
+      <AdminPage
+        onBack={() => navigate('/')}
+        userName={displayName}
+        userPhoto={photoURL}
+      />
+    );
+  }
 
   if (boardId) {
     return (
@@ -131,8 +160,12 @@ export default function App() {
   return (
     <DashboardPage
       onOpenBoard={(id) => navigate(`/b/${id}`)}
+      onOpenAdmin={() => navigate('/admin')}
       userName={displayName}
       userPhoto={photoURL}
+      userEmail={userEmail}
+      isAdmin={isAdminUser}
+      maxBoards={maxBoards}
       onLogout={logout}
     />
   );
@@ -141,16 +174,29 @@ export default function App() {
 // Dashboard page
 function DashboardPage({
   onOpenBoard,
+  onOpenAdmin,
   userName,
   userPhoto,
+  userEmail,
+  isAdmin,
+  maxBoards,
   onLogout,
 }: {
   onOpenBoard: (id: string) => void;
+  onOpenAdmin: () => void;
   userName: string;
   userPhoto?: string;
+  userEmail: string;
+  isAdmin: boolean;
+  maxBoards: number;
   onLogout: () => void;
 }) {
   const { boards, loading, createBoard, deleteBoard } = useBoardManager();
+
+  // Filter boards owned by current user for counting
+  const myBoards = boards.filter(b => b.ownerEmail === userEmail);
+  const myBoardCount = myBoards.length;
+  const canCreateBoard = myBoardCount < maxBoards;
 
   if (loading) {
     return (
@@ -163,15 +209,29 @@ function DashboardPage({
     );
   }
 
+  const handleCreateBoard = async (title: string, description: string) => {
+    if (!canCreateBoard) {
+      toast.error(`보드는 최대 ${maxBoards}개까지 생성할 수 있습니다. 관리자에게 권한 요청하세요.`, { position: 'bottom-right', duration: 3000 });
+      return '';
+    }
+    return createBoard(title, description, userEmail);
+  };
+
   return (
     <>
       <Dashboard
         boards={boards}
-        onCreateBoard={createBoard}
+        onCreateBoard={handleCreateBoard}
         onDeleteBoard={deleteBoard}
         onOpenBoard={onOpenBoard}
+        onOpenAdmin={onOpenAdmin}
         userName={userName}
         userPhoto={userPhoto}
+        userEmail={userEmail}
+        isAdmin={isAdmin}
+        maxBoards={maxBoards}
+        myBoardCount={myBoardCount}
+        canCreateBoard={canCreateBoard}
         onLogout={onLogout}
       />
       <Toaster />

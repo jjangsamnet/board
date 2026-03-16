@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { Board, Post, PostType, ReactionType } from './types';
+import type { Board, Post, PostType, ReactionType, UserProfile } from './types';
 import { CARD_COLORS, REACTION_TYPES } from './types';
 import { db } from './firebase';
 import {
@@ -7,6 +7,7 @@ import {
   doc,
   setDoc,
   deleteDoc,
+  getDoc,
   onSnapshot,
   query,
   orderBy,
@@ -17,6 +18,10 @@ function generateId(): string {
 }
 
 const BOARDS_COLLECTION = 'boards';
+const USERS_COLLECTION = 'users';
+const ADMIN_EMAIL = 'kd12345@gmail.com';
+const DEFAULT_MAX_BOARDS = 3;
+const UPGRADED_MAX_BOARDS = 200;
 
 // Remove undefined values (Firestore doesn't accept undefined)
 function removeUndefined(obj: Record<string, unknown>): Record<string, unknown> {
@@ -82,7 +87,7 @@ export function useBoardManager() {
     return () => unsub();
   }, []);
 
-  const createBoard = useCallback(async (title: string, description: string) => {
+  const createBoard = useCallback(async (title: string, description: string, ownerEmail?: string) => {
     const id = generateId();
     const newBoard: Board = {
       id,
@@ -97,6 +102,7 @@ export function useBoardManager() {
         allowAnonymous: false,
       },
       createdAt: new Date(),
+      ownerEmail,
     };
     try {
       await setDoc(doc(db, BOARDS_COLLECTION, id), boardToFirestore(newBoard));
@@ -223,3 +229,102 @@ export function useBoard(boardId: string, currentUser: string = '익명') {
 
   return { board, loading, addPost, deletePost, toggleReaction, addComment, updateBoard };
 }
+
+// ============ User Profile Management ============
+
+// Ensure user profile exists in Firestore (called on login)
+export async function ensureUserProfile(uid: string, email: string, displayName: string, photoURL?: string): Promise<UserProfile> {
+  const userRef = doc(db, USERS_COLLECTION, uid);
+  const userSnap = await getDoc(userRef);
+  const now = new Date().toISOString();
+
+  if (userSnap.exists()) {
+    // Update last login
+    const existing = userSnap.data() as UserProfile;
+    const updated = { ...existing, displayName, photoURL: photoURL || '', lastLoginAt: now };
+    await setDoc(userRef, removeUndefined(updated));
+    return updated;
+  } else {
+    // Create new profile
+    const isAdmin = email === ADMIN_EMAIL;
+    const newProfile: UserProfile = {
+      uid,
+      email,
+      displayName,
+      photoURL: photoURL || '',
+      role: isAdmin ? 'admin' : 'user',
+      maxBoards: isAdmin ? UPGRADED_MAX_BOARDS : DEFAULT_MAX_BOARDS,
+      createdAt: now,
+      lastLoginAt: now,
+    };
+    await setDoc(userRef, removeUndefined({ ...newProfile } as unknown as Record<string, unknown>));
+    return newProfile;
+  }
+}
+
+// Hook to listen to current user's profile
+export function useUserProfile(uid: string | null) {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!uid) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+    const unsub = onSnapshot(doc(db, USERS_COLLECTION, uid), (snap) => {
+      if (snap.exists()) {
+        setProfile(snap.data() as UserProfile);
+      } else {
+        setProfile(null);
+      }
+      setLoading(false);
+    }, () => setLoading(false));
+    return () => unsub();
+  }, [uid]);
+
+  return { profile, loading };
+}
+
+// Hook to list all users (admin only)
+export function useAllUsers() {
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, USERS_COLLECTION), orderBy('lastLoginAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const list: UserProfile[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as UserProfile);
+      });
+      setUsers(list);
+      setLoading(false);
+    }, () => setLoading(false));
+    return () => unsub();
+  }, []);
+
+  return { users, loading };
+}
+
+// Admin action: grant or revoke board quota
+export async function updateUserMaxBoards(uid: string, maxBoards: number) {
+  const userRef = doc(db, USERS_COLLECTION, uid);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists()) {
+    await setDoc(userRef, { ...userSnap.data(), maxBoards });
+  }
+}
+
+// Admin action: toggle user role
+export async function updateUserRole(uid: string, role: 'admin' | 'user') {
+  const userRef = doc(db, USERS_COLLECTION, uid);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists()) {
+    const maxBoards = role === 'admin' ? UPGRADED_MAX_BOARDS : (userSnap.data() as UserProfile).maxBoards;
+    await setDoc(userRef, { ...userSnap.data(), role, maxBoards });
+  }
+}
+
+export { ADMIN_EMAIL, DEFAULT_MAX_BOARDS, UPGRADED_MAX_BOARDS };
