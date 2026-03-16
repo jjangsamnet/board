@@ -58,8 +58,8 @@ function LoginPage({ onLogin, loading: authLoading }: { onLogin: () => void; loa
         </div>
 
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">공유보드</h1>
-          <p className="text-sm text-gray-500 mt-1">패들렛 스타일 공유 보드</p>
+          <h1 className="text-2xl font-bold text-gray-900">핀!보드</h1>
+          <p className="text-sm text-gray-500 mt-1">Pin!Board - 함께 만드는 공유 보드</p>
         </div>
 
         <p className="text-sm text-gray-600">

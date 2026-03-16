@@ -103,8 +103,8 @@ export function Dashboard({
               <LayoutGrid size={18} className="text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-gray-900">공유보드</h1>
-              <p className="text-xs text-gray-500">패들렛 스타일 공유 보드</p>
+              <h1 className="text-lg font-bold text-gray-900">핀!보드</h1>
+              <p className="text-xs text-gray-500">Pin!Board</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
