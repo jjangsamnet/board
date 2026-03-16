@@ -42,7 +42,18 @@ export default function App() {
 
 // Dashboard page
 function DashboardPage({ onOpenBoard }: { onOpenBoard: (id: string) => void }) {
-  const { boards, createBoard, deleteBoard } = useBoardManager();
+  const { boards, loading, createBoard, deleteBoard } = useBoardManager();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-3 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-gray-500">보드 목록을 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -59,7 +70,7 @@ function DashboardPage({ onOpenBoard }: { onOpenBoard: (id: string) => void }) {
 
 // Individual board page
 function BoardPage({ boardId, onBack }: { boardId: string; onBack: () => void }) {
-  const { board, addPost, deletePost, toggleReaction, addComment, updateBoard } = useBoard(boardId);
+  const { board, loading, addPost, deletePost, toggleReaction, addComment, updateBoard } = useBoard(boardId);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const { activeCount } = useSimulatedUsers();
@@ -88,6 +99,17 @@ function BoardPage({ boardId, onBack }: { boardId: string; onBack: () => void })
 
     return () => clearInterval(interval);
   }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-3 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-gray-500">보드를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!board) {
     return (

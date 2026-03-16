@@ -1,48 +1,80 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Board, Post, PostType, ReactionType } from './types';
 import { CARD_COLORS, REACTION_TYPES } from './types';
+import { db } from './firebase';
+import {
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+} from 'firebase/firestore';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
-// localStorage helpers
-function loadBoards(): Board[] {
-  try {
-    const raw = localStorage.getItem('shared-boards');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return parsed.map((b: Board) => ({
-        ...b,
-        createdAt: new Date(b.createdAt),
-        posts: b.posts.map((p: Post) => ({
-          ...p,
-          createdAt: new Date(p.createdAt),
-          comments: p.comments.map(c => ({ ...c, createdAt: new Date(c.createdAt) })),
-        })),
-      }));
-    }
-  } catch { /* ignore */ }
-  return [];
+const BOARDS_COLLECTION = 'boards';
+
+// Convert Board to Firestore-safe format (no Date objects)
+function boardToFirestore(board: Board) {
+  return {
+    ...board,
+    createdAt: board.createdAt.toISOString(),
+    posts: board.posts.map(p => ({
+      ...p,
+      createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
+      comments: p.comments.map(c => ({
+        ...c,
+        createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : c.createdAt,
+      })),
+    })),
+  };
 }
 
-function saveBoards(boards: Board[]) {
-  try {
-    localStorage.setItem('shared-boards', JSON.stringify(boards));
-  } catch { /* ignore */ }
+// Convert Firestore data back to Board with Dates
+function firestoreToBoard(data: Record<string, unknown>): Board {
+  return {
+    ...(data as unknown as Board),
+    createdAt: new Date(data.createdAt as string),
+    posts: ((data.posts as Record<string, unknown>[]) || []).map(p => ({
+      ...(p as unknown as Post),
+      createdAt: new Date(p.createdAt as string),
+      comments: ((p.comments as Record<string, unknown>[]) || []).map(c => ({
+        ...(c as unknown as Post['comments'][0]),
+        createdAt: new Date(c.createdAt as string),
+      })),
+    })),
+  };
 }
 
-// Multi-board management hook
+// Multi-board management hook (for dashboard)
 export function useBoardManager() {
-  const [boards, setBoards] = useState<Board[]>(() => loadBoards());
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // Real-time listener for all boards
   useEffect(() => {
-    saveBoards(boards);
-  }, [boards]);
+    const q = query(collection(db, BOARDS_COLLECTION), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const boardList: Board[] = [];
+      snapshot.forEach((docSnap) => {
+        boardList.push(firestoreToBoard(docSnap.data()));
+      });
+      setBoards(boardList);
+      setLoading(false);
+    }, () => {
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
 
   const createBoard = useCallback((title: string, description: string) => {
+    const id = generateId();
     const newBoard: Board = {
-      id: generateId(),
+      id,
       title,
       description,
       layout: 'wall',
@@ -55,44 +87,45 @@ export function useBoardManager() {
       },
       createdAt: new Date(),
     };
-    setBoards(prev => [newBoard, ...prev]);
-    return newBoard.id;
+    setDoc(doc(db, BOARDS_COLLECTION, id), boardToFirestore(newBoard));
+    return id;
   }, []);
 
   const deleteBoard = useCallback((boardId: string) => {
-    setBoards(prev => prev.filter(b => b.id !== boardId));
+    deleteDoc(doc(db, BOARDS_COLLECTION, boardId));
   }, []);
 
-  return { boards, createBoard, deleteBoard };
+  return { boards, loading, createBoard, deleteBoard };
 }
 
-// Single board operations hook
+// Single board operations hook (for board page)
 export function useBoard(boardId: string) {
-  const [boards, setBoards] = useState<Board[]>(() => loadBoards());
+  const [board, setBoard] = useState<Board | null>(null);
+  const [loading, setLoading] = useState(true);
   const [currentUser] = useState('나');
-  const board = boards.find(b => b.id === boardId) || null;
 
+  // Real-time listener for single board
   useEffect(() => {
-    saveBoards(boards);
-  }, [boards]);
-
-  // Sync with localStorage changes from other components
-  useEffect(() => {
-    const handleStorage = () => {
-      setBoards(loadBoards());
-    };
-    window.addEventListener('boards-updated', handleStorage);
-    return () => window.removeEventListener('boards-updated', handleStorage);
-  }, []);
-
-  const updateBoardInList = useCallback((updater: (board: Board) => Board) => {
-    setBoards(prev => {
-      const updated = prev.map(b => b.id === boardId ? updater(b) : b);
-      return updated;
+    const unsub = onSnapshot(doc(db, BOARDS_COLLECTION, boardId), (docSnap) => {
+      if (docSnap.exists()) {
+        setBoard(firestoreToBoard(docSnap.data()));
+      } else {
+        setBoard(null);
+      }
+      setLoading(false);
+    }, () => {
+      setLoading(false);
     });
+    return () => unsub();
+  }, [boardId]);
+
+  // Save board to Firestore
+  const saveBoard = useCallback((updatedBoard: Board) => {
+    setDoc(doc(db, BOARDS_COLLECTION, boardId), boardToFirestore(updatedBoard));
   }, [boardId]);
 
   const addPost = useCallback((type: PostType, title: string, content: string, extras?: { imageUrl?: string; linkUrl?: string; videoUrl?: string }) => {
+    if (!board) return;
     const newPost: Post = {
       id: generateId(),
       type,
@@ -105,17 +138,21 @@ export function useBoard(boardId: string) {
       comments: [],
       createdAt: new Date(),
     };
-    updateBoardInList(b => ({ ...b, posts: [newPost, ...b.posts] }));
-  }, [currentUser, updateBoardInList]);
+    const updated = { ...board, posts: [newPost, ...board.posts] };
+    saveBoard(updated);
+  }, [board, currentUser, saveBoard]);
 
   const deletePost = useCallback((postId: string) => {
-    updateBoardInList(b => ({ ...b, posts: b.posts.filter(p => p.id !== postId) }));
-  }, [updateBoardInList]);
+    if (!board) return;
+    const updated = { ...board, posts: board.posts.filter(p => p.id !== postId) };
+    saveBoard(updated);
+  }, [board, saveBoard]);
 
   const toggleReaction = useCallback((postId: string, reactionType: ReactionType) => {
-    updateBoardInList(b => ({
-      ...b,
-      posts: b.posts.map(post => {
+    if (!board) return;
+    const updated = {
+      ...board,
+      posts: board.posts.map(post => {
         if (post.id !== postId) return post;
         return {
           ...post,
@@ -129,28 +166,33 @@ export function useBoard(boardId: string) {
           }),
         };
       }),
-    }));
-  }, [updateBoardInList]);
+    };
+    saveBoard(updated);
+  }, [board, saveBoard]);
 
   const addComment = useCallback((postId: string, content: string) => {
+    if (!board) return;
     const newComment = {
       id: generateId(),
       author: currentUser,
       content,
       createdAt: new Date(),
     };
-    updateBoardInList(b => ({
-      ...b,
-      posts: b.posts.map(post => {
+    const updated = {
+      ...board,
+      posts: board.posts.map(post => {
         if (post.id !== postId) return post;
         return { ...post, comments: [...post.comments, newComment] };
       }),
-    }));
-  }, [currentUser, updateBoardInList]);
+    };
+    saveBoard(updated);
+  }, [board, currentUser, saveBoard]);
 
   const updateBoard = useCallback((updates: Partial<Board>) => {
-    updateBoardInList(b => ({ ...b, ...updates }));
-  }, [updateBoardInList]);
+    if (!board) return;
+    const updated = { ...board, ...updates };
+    saveBoard(updated);
+  }, [board, saveBoard]);
 
-  return { board, addPost, deletePost, toggleReaction, addComment, updateBoard };
+  return { board, loading, addPost, deletePost, toggleReaction, addComment, updateBoard };
 }
