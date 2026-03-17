@@ -10,12 +10,13 @@ interface PostCardProps {
   onReaction: (postId: string, type: ReactionType) => void;
   onComment: (postId: string, content: string) => void;
   onDelete: (postId: string) => void;
+  onClick?: () => void;
   compact?: boolean;
   allowComments?: boolean;
   allowReactions?: boolean;
 }
 
-export function PostCard({ post, onReaction, onComment, onDelete, compact, allowComments = true, allowReactions = true }: PostCardProps) {
+export function PostCard({ post, onReaction, onComment, onDelete, onClick, compact, allowComments = true, allowReactions = true }: PostCardProps) {
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -36,14 +37,23 @@ export function PostCard({ post, onReaction, onComment, onDelete, compact, allow
     return `${Math.floor(hours / 24)}일 전`;
   };
 
+  const rotation = post.imageRotation || 0;
+
   return (
     <Card
-      className="group relative overflow-hidden transition-all duration-200 hover:shadow-lg border-0"
+      className="group relative overflow-hidden transition-all duration-200 hover:shadow-lg border-0 cursor-pointer"
       style={{ backgroundColor: post.color }}
+      onClick={(e) => {
+        // Don't trigger if clicking interactive elements
+        const target = e.target as HTMLElement;
+        if (target.closest('button') || target.closest('input') || target.closest('a')) return;
+        onClick?.();
+      }}
     >
       {/* Delete button */}
       <button
-        onClick={() => {
+        onClick={(e) => {
+          e.stopPropagation();
           if (showConfirmDelete) {
             onDelete(post.id);
           } else {
@@ -51,7 +61,7 @@ export function PostCard({ post, onReaction, onComment, onDelete, compact, allow
             setTimeout(() => setShowConfirmDelete(false), 3000);
           }
         }}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-black/10"
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-black/10 z-10"
         title={showConfirmDelete ? '한번 더 클릭하면 삭제됩니다' : '삭제'}
       >
         <Trash2 size={14} className={showConfirmDelete ? 'text-red-600' : 'text-gray-500'} />
@@ -74,11 +84,12 @@ export function PostCard({ post, onReaction, onComment, onDelete, compact, allow
       <CardContent className="px-4 py-2">
         {/* Image */}
         {post.type === 'image' && post.imageUrl && (
-          <div className="mb-2 -mx-4 -mt-1">
+          <div className="mb-2 -mx-4 -mt-1 overflow-hidden">
             <img
               src={post.imageUrl}
               alt={post.title}
-              className="w-full h-40 object-cover"
+              className="w-full h-40 object-cover transition-transform duration-300"
+              style={{ transform: rotation ? `rotate(${rotation}deg) scale(${rotation % 180 !== 0 ? 1.2 : 1})` : undefined }}
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTJlOGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTRhM2I4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+7J2066+47KeA66W8IOu2iOufrOyYrCDsiJgg7JeG7Iq164uI64ukPC90ZXh0Pjwvc3ZnPg==';
               }}
@@ -121,7 +132,10 @@ export function PostCard({ post, onReaction, onComment, onDelete, compact, allow
             post.reactions.map(reaction => (
               <button
                 key={reaction.type}
-                onClick={() => onReaction(post.id, reaction.type)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReaction(post.id, reaction.type);
+                }}
                 className={`
                   inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs transition-all
                   ${reaction.userReacted
@@ -139,7 +153,10 @@ export function PostCard({ post, onReaction, onComment, onDelete, compact, allow
           )}
           {allowComments && (
             <button
-              onClick={() => setShowComments(!showComments)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowComments(!showComments);
+              }}
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-white/40 hover:bg-white/60 ml-auto"
             >
               <MessageCircle size={12} />
@@ -150,7 +167,7 @@ export function PostCard({ post, onReaction, onComment, onDelete, compact, allow
 
         {/* Comments section */}
         {allowComments && showComments && (
-          <div className="w-full space-y-2 pt-1 border-t border-black/5">
+          <div className="w-full space-y-2 pt-1 border-t border-black/5" onClick={e => e.stopPropagation()}>
             {post.comments.map(comment => (
               <div key={comment.id} className="text-xs bg-white/50 rounded-lg p-2">
                 <span className="font-medium">{comment.author}</span>

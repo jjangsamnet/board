@@ -256,7 +256,7 @@ function BoardPage({
   userId: string;
   onLogout: () => void;
 }) {
-  const { board, loading, addPost, deletePost, toggleReaction, addComment, updateBoard } = useBoard(boardId, userName);
+  const { board, loading, addPost, deletePost, toggleReaction, addComment, updatePost, updateBoard } = useBoard(boardId, userName);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
 
@@ -322,6 +322,7 @@ function BoardPage({
         posts={board.posts}
         layout={board.layout}
         settings={board.settings}
+        currentUser={userName}
         onReaction={toggleReaction}
         onComment={(postId, content) => {
           addComment(postId, content);
@@ -330,6 +331,9 @@ function BoardPage({
         onDelete={(postId) => {
           deletePost(postId);
           toast('포스트가 삭제되었습니다', { position: 'bottom-right', duration: 2000 });
+        }}
+        onRotateImage={(postId, rotation) => {
+          updatePost(postId, { imageRotation: rotation });
         }}
       />
 

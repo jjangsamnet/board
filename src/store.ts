@@ -221,13 +221,25 @@ export function useBoard(boardId: string, currentUser: string = '익명') {
     saveBoard(updated);
   }, [board, currentUser, saveBoard]);
 
+  const updatePost = useCallback((postId: string, updates: Partial<Post>) => {
+    if (!board) return;
+    const updated = {
+      ...board,
+      posts: board.posts.map(post => {
+        if (post.id !== postId) return post;
+        return { ...post, ...updates };
+      }),
+    };
+    saveBoard(updated);
+  }, [board, saveBoard]);
+
   const updateBoard = useCallback((updates: Partial<Board>) => {
     if (!board) return;
     const updated = { ...board, ...updates };
     saveBoard(updated);
   }, [board, saveBoard]);
 
-  return { board, loading, addPost, deletePost, toggleReaction, addComment, updateBoard };
+  return { board, loading, addPost, deletePost, toggleReaction, addComment, updatePost, updateBoard };
 }
 
 // ============ User Profile Management ============

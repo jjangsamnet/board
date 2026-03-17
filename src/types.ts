@@ -23,6 +23,7 @@ export interface Post {
   imageUrl?: string;
   linkUrl?: string;
   videoUrl?: string;
+  imageRotation?: number;
   author: string;
   color: string;
   reactions: Reaction[];
