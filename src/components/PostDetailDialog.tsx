@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import {
   X,
   RotateCw,
+  Trash2,
   MessageCircle,
   Send,
   ExternalLink,
@@ -17,9 +18,10 @@ interface PostDetailDialogProps {
   onClose: () => void;
   onReaction: (postId: string, type: ReactionType) => void;
   onComment: (postId: string, content: string) => void;
+  onDelete?: (postId: string) => void;
   onRotateImage?: (postId: string, rotation: number) => void;
   currentUser?: string;
-  isAdmin?: boolean;
+  canManagePosts?: boolean;
   allowComments?: boolean;
   allowReactions?: boolean;
 }
@@ -30,9 +32,10 @@ export function PostDetailDialog({
   onClose,
   onReaction,
   onComment,
+  onDelete,
   onRotateImage,
   currentUser,
-  isAdmin = false,
+  canManagePosts = false,
   allowComments = true,
   allowReactions = true,
 }: PostDetailDialogProps) {
@@ -46,9 +49,11 @@ export function PostDetailDialog({
     setCommentText('');
   };
 
-  const canRotate = isAdmin || (currentUser && post.author === currentUser);
+  const canRotate = canManagePosts || (currentUser && post.author === currentUser);
+  const canDelete = canManagePosts || (currentUser && post.author === currentUser);
   const rotation = post.imageRotation || 0;
   const hasImage = post.type === 'image' && post.imageUrl;
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   const handleRotate = () => {
     if (onRotateImage) {
@@ -81,13 +86,33 @@ export function PostDetailDialog({
             <p className="text-xs text-gray-500">{timeAgo(post.createdAt)}</p>
           </div>
         </div>
-        {/* Close button only shown here on non-image posts or mobile */}
-        <button
-          onClick={onClose}
-          className={`p-2 rounded-full hover:bg-black/10 transition-colors ${hasImage ? 'lg:hidden' : ''}`}
-        >
-          <X size={20} className="text-gray-600" />
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Delete button */}
+          {canDelete && onDelete && (
+            <button
+              onClick={() => {
+                if (showConfirmDelete) {
+                  onDelete(post.id);
+                  onClose();
+                } else {
+                  setShowConfirmDelete(true);
+                  setTimeout(() => setShowConfirmDelete(false), 3000);
+                }
+              }}
+              className="p-2 rounded-full hover:bg-black/10 transition-colors"
+              title={showConfirmDelete ? '한번 더 클릭하면 삭제됩니다' : '포스트 삭제'}
+            >
+              <Trash2 size={18} className={showConfirmDelete ? 'text-red-600' : 'text-gray-400'} />
+            </button>
+          )}
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className={`p-2 rounded-full hover:bg-black/10 transition-colors ${hasImage ? 'lg:hidden' : ''}`}
+          >
+            <X size={20} className="text-gray-600" />
+          </button>
+        </div>
       </div>
 
       {/* Scrollable content area */}

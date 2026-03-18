@@ -153,6 +153,7 @@ export default function App() {
         userName={displayName}
         userPhoto={photoURL}
         userId={user.uid}
+        userEmail={userEmail}
         isAdmin={isAdminUser}
         onLogout={logout}
       />
@@ -248,6 +249,7 @@ function BoardPage({
   userName,
   userPhoto,
   userId,
+  userEmail,
   isAdmin,
   onLogout,
 }: {
@@ -256,6 +258,7 @@ function BoardPage({
   userName: string;
   userPhoto?: string;
   userId: string;
+  userEmail: string;
   isAdmin?: boolean;
   onLogout: () => void;
 }) {
@@ -326,7 +329,7 @@ function BoardPage({
         layout={board.layout}
         settings={board.settings}
         currentUser={userName}
-        isAdmin={isAdmin}
+        canManagePosts={!!isAdmin || board.ownerEmail === userEmail}
         onReaction={toggleReaction}
         onComment={(postId, content) => {
           addComment(postId, content);

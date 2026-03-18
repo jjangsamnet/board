@@ -14,9 +14,11 @@ interface PostCardProps {
   compact?: boolean;
   allowComments?: boolean;
   allowReactions?: boolean;
+  canManagePosts?: boolean;
+  currentUser?: string;
 }
 
-export function PostCard({ post, onReaction, onComment, onDelete, onClick, compact, allowComments = true, allowReactions = true }: PostCardProps) {
+export function PostCard({ post, onReaction, onComment, onDelete, onClick, compact, allowComments = true, allowReactions = true, canManagePosts, currentUser }: PostCardProps) {
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -38,6 +40,7 @@ export function PostCard({ post, onReaction, onComment, onDelete, onClick, compa
   };
 
   const rotation = post.imageRotation || 0;
+  const canDelete = canManagePosts || (currentUser && post.author === currentUser);
 
   return (
     <Card
@@ -50,8 +53,8 @@ export function PostCard({ post, onReaction, onComment, onDelete, onClick, compa
         onClick?.();
       }}
     >
-      {/* Delete button */}
-      <button
+      {/* Delete button - only for managers or post author */}
+      {canDelete && <button
         onClick={(e) => {
           e.stopPropagation();
           if (showConfirmDelete) {
@@ -65,7 +68,7 @@ export function PostCard({ post, onReaction, onComment, onDelete, onClick, compa
         title={showConfirmDelete ? '한번 더 클릭하면 삭제됩니다' : '삭제'}
       >
         <Trash2 size={14} className={showConfirmDelete ? 'text-red-600' : 'text-gray-500'} />
-      </button>
+      </button>}
 
       <CardHeader className="pb-1 pt-3 px-4">
         <div className="flex items-center gap-2">
