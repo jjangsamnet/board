@@ -252,8 +252,8 @@ export function PostDetailDialog({
             <X size={20} className="text-white" />
           </button>
 
-          {/* Left: Image panel (desktop only) */}
-          <div className="hidden lg:flex lg:w-3/5 relative items-center justify-center bg-black/20 group/img min-h-0">
+          {/* Left: Image panel (desktop only) - 80% */}
+          <div className="hidden lg:flex lg:w-4/5 relative items-center justify-center bg-black/20 group/img min-h-0">
             <img
               src={post.imageUrl}
               alt={post.title}
@@ -276,8 +276,8 @@ export function PostDetailDialog({
             )}
           </div>
 
-          {/* Right: Content panel */}
-          <div className="flex-1 lg:w-2/5 lg:min-w-[340px] lg:max-w-[440px] flex flex-col min-h-0 overflow-hidden">
+          {/* Right: Content panel - 20% */}
+          <div className="flex-1 lg:w-1/5 lg:min-w-[280px] flex flex-col min-h-0 overflow-hidden">
             {contentPanel}
           </div>
         </div>
