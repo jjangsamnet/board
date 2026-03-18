@@ -153,6 +153,7 @@ export default function App() {
         userName={displayName}
         userPhoto={photoURL}
         userId={user.uid}
+        isAdmin={isAdminUser}
         onLogout={logout}
       />
     );
@@ -247,6 +248,7 @@ function BoardPage({
   userName,
   userPhoto,
   userId,
+  isAdmin,
   onLogout,
 }: {
   boardId: string;
@@ -254,6 +256,7 @@ function BoardPage({
   userName: string;
   userPhoto?: string;
   userId: string;
+  isAdmin?: boolean;
   onLogout: () => void;
 }) {
   const { board, loading, addPost, deletePost, toggleReaction, addComment, updatePost, updateBoard } = useBoard(boardId, userName);
@@ -323,6 +326,7 @@ function BoardPage({
         layout={board.layout}
         settings={board.settings}
         currentUser={userName}
+        isAdmin={isAdmin}
         onReaction={toggleReaction}
         onComment={(postId, content) => {
           addComment(postId, content);

@@ -12,9 +12,10 @@ interface BoardViewProps {
   onDelete: (postId: string) => void;
   onRotateImage?: (postId: string, rotation: number) => void;
   currentUser?: string;
+  isAdmin?: boolean;
 }
 
-export function BoardView({ posts, layout, settings, onReaction, onComment, onDelete, onRotateImage, currentUser }: BoardViewProps) {
+export function BoardView({ posts, layout, settings, onReaction, onComment, onDelete, onRotateImage, currentUser, isAdmin }: BoardViewProps) {
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const selectedPost = selectedPostId ? posts.find(p => p.id === selectedPostId) : null;
 
@@ -85,6 +86,7 @@ export function BoardView({ posts, layout, settings, onReaction, onComment, onDe
           onComment={onComment}
           onRotateImage={onRotateImage}
           currentUser={currentUser}
+          isAdmin={isAdmin}
           allowComments={settings.allowComments}
           allowReactions={settings.allowReactions}
         />

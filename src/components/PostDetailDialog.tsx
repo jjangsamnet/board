@@ -19,6 +19,7 @@ interface PostDetailDialogProps {
   onComment: (postId: string, content: string) => void;
   onRotateImage?: (postId: string, rotation: number) => void;
   currentUser?: string;
+  isAdmin?: boolean;
   allowComments?: boolean;
   allowReactions?: boolean;
 }
@@ -31,6 +32,7 @@ export function PostDetailDialog({
   onComment,
   onRotateImage,
   currentUser,
+  isAdmin = false,
   allowComments = true,
   allowReactions = true,
 }: PostDetailDialogProps) {
@@ -44,7 +46,7 @@ export function PostDetailDialog({
     setCommentText('');
   };
 
-  const isOwner = currentUser && post.author === currentUser;
+  const canRotate = isAdmin || (currentUser && post.author === currentUser);
   const rotation = post.imageRotation || 0;
   const hasImage = post.type === 'image' && post.imageUrl;
 
@@ -110,7 +112,7 @@ export function PostDetailDialog({
                 }}
               />
             </div>
-            {isOwner && (
+            {canRotate && (
               <button
                 onClick={handleRotate}
                 className="absolute bottom-3 right-3 p-2.5 rounded-full bg-white/90 shadow-lg hover:bg-white transition-colors opacity-0 group-hover/img:opacity-100"
@@ -265,7 +267,7 @@ export function PostDetailDialog({
               }}
             />
             {/* Rotate button */}
-            {isOwner && (
+            {canRotate && (
               <button
                 onClick={handleRotate}
                 className="absolute bottom-4 right-4 p-3 rounded-full bg-white/90 shadow-lg hover:bg-white transition-all opacity-0 group-hover/img:opacity-100"
