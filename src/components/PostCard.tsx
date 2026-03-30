@@ -3,7 +3,8 @@ import type { Post, ReactionType } from '../types';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MessageCircle, Trash2, Send, ExternalLink, Play } from 'lucide-react';
+import { MessageCircle, Trash2, Send, ExternalLink, Play, Download } from 'lucide-react';
+import { getFileIcon, getFileTypeLabel, formatFileSize } from '../uploadImage';
 
 interface PostCardProps {
   post: Post;
@@ -105,6 +106,28 @@ export function PostCard({ post, onReaction, onComment, onDelete, onClick, compa
           <div className="mb-2 -mx-4 -mt-1 bg-black/10 h-36 flex items-center justify-center">
             <Play size={32} className="text-gray-500" />
           </div>
+        )}
+
+        {/* File attachment */}
+        {post.type === 'file' && post.fileUrl && post.fileName && (
+          <a
+            href={post.fileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={post.fileName}
+            className="mb-2 flex items-center gap-2.5 p-2.5 rounded-lg bg-white/50 hover:bg-white/80 transition-colors no-underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="text-2xl shrink-0">{getFileIcon(post.fileName)}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-800 truncate">{post.fileName}</p>
+              <p className="text-[10px] text-gray-500">
+                {getFileTypeLabel(post.fileName)}
+                {post.fileSize ? ` · ${formatFileSize(post.fileSize)}` : ''}
+              </p>
+            </div>
+            <Download size={14} className="text-gray-400 shrink-0" />
+          </a>
         )}
 
         {/* Link preview */}

@@ -67,3 +67,149 @@ export async function uploadImageToStorage(file: File | Blob, userId: string): P
   const downloadURL = await getDownloadURL(storageRef);
   return downloadURL;
 }
+
+// Allowed document file extensions and their MIME types
+const ALLOWED_FILE_TYPES: Record<string, string> = {
+  // 한글 문서
+  '.hwp': 'application/x-hwp',
+  '.hwpx': 'application/haansofthwpx',
+  // MS Office
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.doc': 'application/msword',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls': 'application/vnd.ms-excel',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  // PDF
+  '.pdf': 'application/pdf',
+  // 텍스트
+  '.txt': 'text/plain',
+  '.csv': 'text/csv',
+};
+
+// Max file size: 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+export function getFileExtension(fileName: string): string {
+  const lastDot = fileName.lastIndexOf('.');
+  return lastDot >= 0 ? fileName.substring(lastDot).toLowerCase() : '';
+}
+
+export function isAllowedFileType(fileName: string): boolean {
+  const ext = getFileExtension(fileName);
+  return ext in ALLOWED_FILE_TYPES;
+}
+
+export function getAllowedExtensions(): string {
+  return Object.keys(ALLOWED_FILE_TYPES).join(', ');
+}
+
+export function getAcceptString(): string {
+  return Object.entries(ALLOWED_FILE_TYPES)
+    .map(([ext, mime]) => `${ext},${mime}`)
+    .join(',');
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+// Get icon emoji based on file extension
+export function getFileIcon(fileName: string): string {
+  const ext = getFileExtension(fileName);
+  switch (ext) {
+    case '.hwp':
+    case '.hwpx':
+      return '📝';
+    case '.doc':
+    case '.docx':
+      return '📄';
+    case '.xls':
+    case '.xlsx':
+      return '📊';
+    case '.ppt':
+    case '.pptx':
+      return '📽️';
+    case '.pdf':
+      return '📕';
+    case '.txt':
+      return '📃';
+    case '.csv':
+      return '📈';
+    default:
+      return '📎';
+  }
+}
+
+// Get display label for file type
+export function getFileTypeLabel(fileName: string): string {
+  const ext = getFileExtension(fileName);
+  switch (ext) {
+    case '.hwp':
+    case '.hwpx':
+      return '한글 문서';
+    case '.doc':
+    case '.docx':
+      return 'Word 문서';
+    case '.xls':
+    case '.xlsx':
+      return 'Excel 문서';
+    case '.ppt':
+    case '.pptx':
+      return 'PPT 문서';
+    case '.pdf':
+      return 'PDF 문서';
+    case '.txt':
+      return '텍스트 파일';
+    case '.csv':
+      return 'CSV 파일';
+    default:
+      return '첨부 파일';
+  }
+}
+
+// Upload a document file to Firebase Storage and return the download URL
+export async function uploadFileToStorage(
+  file: File,
+  userId: string
+): Promise<{ url: string; fileName: string; fileSize: number; fileType: string }> {
+  // Validate file type
+  if (!isAllowedFileType(file.name)) {
+    throw new Error(`지원하지 않는 파일 형식입니다. 지원 형식: ${getAllowedExtensions()}`);
+  }
+
+  // Validate file size
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`파일 크기가 10MB를 초과합니다. (현재: ${formatFileSize(file.size)})`);
+  }
+
+  // Generate unique filename preserving original extension
+  const ext = getFileExtension(file.name);
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8);
+  const storagePath = `files/${userId}/${timestamp}_${random}${ext}`;
+
+  // Determine content type
+  const contentType = ALLOWED_FILE_TYPES[ext] || 'application/octet-stream';
+
+  // Upload to Storage with original filename in metadata
+  const storageRef = ref(storage, storagePath);
+  await uploadBytes(storageRef, file, {
+    contentType,
+    customMetadata: {
+      originalName: file.name,
+    },
+  });
+
+  // Get download URL
+  const downloadURL = await getDownloadURL(storageRef);
+
+  return {
+    url: downloadURL,
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: ext,
+  };
+}

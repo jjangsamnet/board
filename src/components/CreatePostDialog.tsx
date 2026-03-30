@@ -5,13 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Type, Image, Link, Video, ClipboardPaste, X, Upload, Loader2 } from 'lucide-react';
-import { uploadImageToStorage } from '../uploadImage';
+import { Type, Image, Link, Video, ClipboardPaste, X, Upload, Loader2, FileText, Paperclip } from 'lucide-react';
+import { uploadImageToStorage, uploadFileToStorage, isAllowedFileType, formatFileSize, getFileIcon, getFileTypeLabel, getAcceptString } from '../uploadImage';
 
 interface CreatePostDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (type: PostType, title: string, content: string, extras?: { imageUrl?: string; linkUrl?: string; videoUrl?: string }) => void;
+  onSubmit: (type: PostType, title: string, content: string, extras?: { imageUrl?: string; linkUrl?: string; videoUrl?: string; fileUrl?: string; fileName?: string; fileSize?: number; fileType?: string }) => void;
   userId?: string;
 }
 
@@ -27,35 +27,56 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
   const [imageLabel, setImageLabel] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pasteHint, setPasteHint] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async () => {
-    if (!title.trim() && !content.trim() && !previewImage && !imageUrl.trim()) return;
+    if (!title.trim() && !content.trim() && !previewImage && !imageUrl.trim() && !attachedFile) return;
     setUploading(true);
 
     try {
       let finalImageUrl: string | undefined;
+      let fileExtras: { fileUrl?: string; fileName?: string; fileSize?: number; fileType?: string } = {};
 
-      // If we have a file to upload, send to Firebase Storage
+      // If we have a document file to upload
+      if (attachedFile && userId) {
+        const result = await uploadFileToStorage(attachedFile, userId);
+        fileExtras = {
+          fileUrl: result.url,
+          fileName: result.fileName,
+          fileSize: result.fileSize,
+          fileType: result.fileType,
+        };
+      }
+
+      // If we have an image file to upload, send to Firebase Storage
       if (uploadedFile && userId) {
         finalImageUrl = await uploadImageToStorage(uploadedFile, userId);
       } else if (imageUrl.trim()) {
         finalImageUrl = imageUrl.trim();
       }
 
-      const finalType = finalImageUrl && postType !== 'link' && postType !== 'video' ? 'image' : postType;
+      let finalType: PostType = postType;
+      if (fileExtras.fileUrl) {
+        finalType = 'file';
+      } else if (finalImageUrl && postType !== 'link' && postType !== 'video') {
+        finalType = 'image';
+      }
 
       onSubmit(finalType, title.trim(), content.trim(), {
         imageUrl: finalImageUrl,
         linkUrl: linkUrl.trim() || undefined,
         videoUrl: videoUrl.trim() || undefined,
+        ...fileExtras,
       });
 
       resetForm();
       onClose();
     } catch (err) {
       console.error('포스트 게시 실패:', err);
-      alert('이미지 업로드에 실패했습니다. 다시 시도해주세요.');
+      const message = err instanceof Error ? err.message : '파일 업로드에 실패했습니다. 다시 시도해주세요.';
+      alert(message);
     } finally {
       setUploading(false);
     }
@@ -70,9 +91,11 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
     setPreviewImage(null);
     setUploadedFile(null);
     setImageLabel(null);
+    setAttachedFile(null);
     setPostType('text');
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (docFileInputRef.current) docFileInputRef.current.value = '';
   };
 
   // Create local preview from file
@@ -84,7 +107,7 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
     setPreviewImage(url);
   }, []);
 
-  // Handle file input change
+  // Handle image file input change
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -96,14 +119,38 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
     previewFile(file, `${file.name} (${sizeMB}MB)`);
   }, [previewFile]);
 
+  // Handle document file input change
+  const handleDocFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!isAllowedFileType(file.name)) {
+      alert('지원하지 않는 파일 형식입니다.\n지원 형식: HWP, HWPX, DOC, DOCX, XLS, XLSX, PPT, PPTX, PDF, TXT, CSV');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert(`파일 크기가 10MB를 초과합니다. (현재: ${formatFileSize(file.size)})`);
+      return;
+    }
+    setAttachedFile(file);
+    setPostType('file');
+  }, []);
+
   // Handle drag & drop
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) {
+    if (!file) return;
+    if (file.type.startsWith('image/')) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
       previewFile(file, `${file.name} (${sizeMB}MB)`);
+    } else if (isAllowedFileType(file.name)) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`파일 크기가 10MB를 초과합니다. (현재: ${formatFileSize(file.size)})`);
+        return;
+      }
+      setAttachedFile(file);
+      setPostType('file');
     }
   }, [previewFile]);
 
@@ -191,11 +238,12 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
   const tabs = [
     { value: 'text', label: '텍스트', icon: Type },
     { value: 'image', label: '이미지', icon: Image },
+    { value: 'file', label: '파일', icon: FileText },
     { value: 'link', label: '링크', icon: Link },
     { value: 'video', label: '동영상', icon: Video },
   ] as const;
 
-  const hasContent = title.trim() || content.trim() || previewImage || imageUrl.trim();
+  const hasContent = title.trim() || content.trim() || previewImage || imageUrl.trim() || attachedFile;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { resetForm(); onClose(); } }}>
@@ -221,7 +269,7 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
         </DialogHeader>
 
         <Tabs value={postType} onValueChange={(v) => setPostType(v as PostType)} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 h-9">
+          <TabsList className="grid w-full grid-cols-5 h-9">
             {tabs.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} className="text-xs flex items-center gap-1">
                 <tab.icon size={14} />
@@ -303,6 +351,54 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
                     <img src={imageUrl} alt="미리보기" className="w-full h-32 object-cover rounded-lg" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
                   )}
                 </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="file" className="mt-0 space-y-2">
+              {!attachedFile ? (
+                <>
+                  <div
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors cursor-pointer"
+                    onClick={() => docFileInputRef.current?.click()}
+                  >
+                    <Paperclip size={24} className="mx-auto text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 font-medium">파일 선택</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      클릭하여 선택하거나, 다이얼로그에 드래그 앤 드롭
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      HWP, Word, Excel, PPT, PDF, TXT, CSV (최대 10MB)
+                    </p>
+                  </div>
+                  <input
+                    ref={docFileInputRef}
+                    type="file"
+                    accept={getAcceptString()}
+                    onChange={handleDocFileSelect}
+                    className="hidden"
+                  />
+                </>
+              ) : (
+                <div className="relative border rounded-lg p-3 bg-white/80">
+                  <button
+                    onClick={() => {
+                      setAttachedFile(null);
+                      if (docFileInputRef.current) docFileInputRef.current.value = '';
+                    }}
+                    className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
+                  >
+                    <X size={14} />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{getFileIcon(attachedFile.name)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-800 truncate">{attachedFile.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {getFileTypeLabel(attachedFile.name)} · {formatFileSize(attachedFile.size)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               )}
             </TabsContent>
 

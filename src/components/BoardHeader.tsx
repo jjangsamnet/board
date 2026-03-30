@@ -96,7 +96,7 @@ export function BoardHeader({
             )}
             <div className="flex items-center gap-2 mt-0.5">
               <p className={`text-xs truncate ${isDarkWallpaper ? 'text-white/60' : 'text-gray-500'}`}>
-                {board.description} · 포스트 {board.posts.length}개
+                {board.description} · 포스트 {board.postCount ?? board.posts.length}개
               </p>
               {!board.settings.allowComments && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">댓글 OFF</span>

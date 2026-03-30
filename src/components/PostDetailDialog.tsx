@@ -10,7 +10,9 @@ import {
   Send,
   ExternalLink,
   Play,
+  Download,
 } from 'lucide-react';
+import { getFileIcon, getFileTypeLabel, formatFileSize } from '../uploadImage';
 
 interface PostDetailDialogProps {
   post: Post;
@@ -154,6 +156,30 @@ export function PostDetailDialog({
           <div className="rounded-xl bg-black/10 h-64 flex items-center justify-center">
             <Play size={48} className="text-gray-500" />
           </div>
+        )}
+
+        {/* File attachment */}
+        {post.type === 'file' && post.fileUrl && post.fileName && (
+          <a
+            href={post.fileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={post.fileName}
+            className="flex items-center gap-4 p-4 rounded-xl bg-white/50 hover:bg-white/80 transition-colors no-underline"
+          >
+            <span className="text-4xl shrink-0">{getFileIcon(post.fileName)}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-gray-800 truncate">{post.fileName}</p>
+              <p className="text-xs text-gray-500">
+                {getFileTypeLabel(post.fileName)}
+                {post.fileSize ? ` · ${formatFileSize(post.fileSize)}` : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-medium shrink-0">
+              <Download size={14} />
+              다운로드
+            </div>
+          </a>
         )}
 
         {/* Link */}

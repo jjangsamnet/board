@@ -1,4 +1,4 @@
-export type PostType = 'text' | 'image' | 'link' | 'video';
+export type PostType = 'text' | 'image' | 'link' | 'video' | 'file';
 export type LayoutMode = 'wall' | 'grid' | 'stream';
 export type ReactionType = '👍' | '❤️' | '⭐' | '😄';
 
@@ -23,6 +23,10 @@ export interface Post {
   imageUrl?: string;
   linkUrl?: string;
   videoUrl?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  fileType?: string;
   imageRotation?: number;
   author: string;
   color: string;
@@ -46,6 +50,7 @@ export interface Board {
   layout: LayoutMode;
   wallpaper: string;
   posts: Post[];
+  postCount?: number; // Firestore metadata (posts are in subcollection)
   settings: BoardSettings;
   createdAt: Date;
   ownerEmail?: string;

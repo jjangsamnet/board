@@ -229,7 +229,7 @@ export function Dashboard({
                     <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
                       <span className="flex items-center gap-1">
                         <FileText size={12} />
-                        {board.posts.length}개 포스트
+                        {board.postCount ?? board.posts.length}개 포스트
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock size={12} />
