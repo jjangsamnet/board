@@ -120,9 +120,10 @@ export function getAllowedExtensions(): string {
 }
 
 export function getAcceptString(): string {
-  return Object.entries(ALLOWED_FILE_TYPES)
-    .map(([ext, mime]) => `${ext},${mime}`)
-    .join(',');
+  // 확장자와 MIME 타입을 모두 나열하여 OS 파일 대화상자에서 형식 필터가 표시되도록 함
+  const extensions = Object.keys(ALLOWED_FILE_TYPES).join(',');
+  const mimes = Object.values(ALLOWED_FILE_TYPES).join(',');
+  return `${extensions},${mimes}`;
 }
 
 export function formatFileSize(bytes: number): string {
@@ -197,9 +198,9 @@ export function getAllowedAudioExtensions(): string {
 }
 
 export function getAudioAcceptString(): string {
-  return Object.entries(ALLOWED_AUDIO_TYPES)
-    .map(([ext, mime]) => `${ext},${mime}`)
-    .join(',');
+  // audio/* 를 포함하여 OS 파일 대화상자에서 '오디오 파일' 필터가 표시되도록 함
+  const extensions = Object.keys(ALLOWED_AUDIO_TYPES).join(',');
+  return `audio/*,${extensions}`;
 }
 
 export function getAudioIcon(): string {
