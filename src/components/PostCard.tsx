@@ -3,8 +3,8 @@ import type { Post, ReactionType } from '../types';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MessageCircle, Trash2, Send, ExternalLink, Play, Download } from 'lucide-react';
-import { getFileIcon, getFileTypeLabel, formatFileSize } from '../uploadImage';
+import { MessageCircle, Trash2, Send, ExternalLink, Play, Download, Music } from 'lucide-react';
+import { getFileIcon, getFileTypeLabel, formatFileSize, getAudioTypeLabel } from '../uploadImage';
 
 interface PostCardProps {
   post: Post;
@@ -105,6 +105,22 @@ export function PostCard({ post, onReaction, onComment, onDelete, onClick, compa
         {post.type === 'video' && post.videoUrl && (
           <div className="mb-2 -mx-4 -mt-1 bg-black/10 h-36 flex items-center justify-center">
             <Play size={32} className="text-gray-500" />
+          </div>
+        )}
+
+        {/* Audio */}
+        {post.type === 'audio' && post.audioUrl && (
+          <div className="mb-2 rounded-lg bg-gradient-to-r from-purple-50 to-indigo-50 p-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-2">
+              <Music size={16} className="text-purple-500" />
+              <span className="text-xs font-medium text-purple-700">
+                {post.fileName ? getAudioTypeLabel(post.fileName) : '오디오'}
+              </span>
+              {post.fileSize && (
+                <span className="text-[10px] text-purple-400">{formatFileSize(post.fileSize)}</span>
+              )}
+            </div>
+            <audio controls className="w-full h-8" src={post.audioUrl} preload="metadata" />
           </div>
         )}
 

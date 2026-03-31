@@ -87,6 +87,21 @@ const ALLOWED_FILE_TYPES: Record<string, string> = {
   '.csv': 'text/csv',
 };
 
+// Allowed audio file extensions and their MIME types
+const ALLOWED_AUDIO_TYPES: Record<string, string> = {
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.aac': 'audio/aac',
+  '.m4a': 'audio/mp4',
+  '.flac': 'audio/flac',
+  '.wma': 'audio/x-ms-wma',
+  '.webm': 'audio/webm',
+};
+
+// Max audio file size: 20MB
+const MAX_AUDIO_SIZE = 20 * 1024 * 1024;
+
 // Max file size: 10MB
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -168,6 +183,86 @@ export function getFileTypeLabel(fileName: string): string {
     default:
       return '첨부 파일';
   }
+}
+
+// ============ Audio file helpers ============
+
+export function isAllowedAudioType(fileName: string): boolean {
+  const ext = getFileExtension(fileName);
+  return ext in ALLOWED_AUDIO_TYPES;
+}
+
+export function getAllowedAudioExtensions(): string {
+  return Object.keys(ALLOWED_AUDIO_TYPES).join(', ');
+}
+
+export function getAudioAcceptString(): string {
+  return Object.entries(ALLOWED_AUDIO_TYPES)
+    .map(([ext, mime]) => `${ext},${mime}`)
+    .join(',');
+}
+
+export function getAudioIcon(): string {
+  return '🎵';
+}
+
+export function getAudioTypeLabel(fileName: string): string {
+  const ext = getFileExtension(fileName);
+  switch (ext) {
+    case '.mp3': return 'MP3 오디오';
+    case '.wav': return 'WAV 오디오';
+    case '.ogg': return 'OGG 오디오';
+    case '.aac': return 'AAC 오디오';
+    case '.m4a': return 'M4A 오디오';
+    case '.flac': return 'FLAC 오디오';
+    case '.wma': return 'WMA 오디오';
+    case '.webm': return 'WebM 오디오';
+    default: return '오디오 파일';
+  }
+}
+
+// Upload an audio file to Firebase Storage and return the download URL
+export async function uploadAudioToStorage(
+  file: File,
+  userId: string
+): Promise<{ url: string; fileName: string; fileSize: number; fileType: string }> {
+  // Validate file type
+  if (!isAllowedAudioType(file.name)) {
+    throw new Error(`지원하지 않는 오디오 형식입니다. 지원 형식: ${getAllowedAudioExtensions()}`);
+  }
+
+  // Validate file size
+  if (file.size > MAX_AUDIO_SIZE) {
+    throw new Error(`오디오 파일 크기가 20MB를 초과합니다. (현재: ${formatFileSize(file.size)})`);
+  }
+
+  // Generate unique filename preserving original extension
+  const ext = getFileExtension(file.name);
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8);
+  const storagePath = `audio/${userId}/${timestamp}_${random}${ext}`;
+
+  // Determine content type
+  const contentType = ALLOWED_AUDIO_TYPES[ext] || 'audio/mpeg';
+
+  // Upload to Storage with original filename in metadata
+  const storageRef = ref(storage, storagePath);
+  await uploadBytes(storageRef, file, {
+    contentType,
+    customMetadata: {
+      originalName: file.name,
+    },
+  });
+
+  // Get download URL
+  const downloadURL = await getDownloadURL(storageRef);
+
+  return {
+    url: downloadURL,
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: ext,
+  };
 }
 
 // Upload a document file to Firebase Storage and return the download URL

@@ -11,8 +11,9 @@ import {
   ExternalLink,
   Play,
   Download,
+  Music,
 } from 'lucide-react';
-import { getFileIcon, getFileTypeLabel, formatFileSize } from '../uploadImage';
+import { getFileIcon, getFileTypeLabel, formatFileSize, getAudioTypeLabel } from '../uploadImage';
 
 interface PostDetailDialogProps {
   post: Post;
@@ -155,6 +156,29 @@ export function PostDetailDialog({
         {post.type === 'video' && post.videoUrl && (
           <div className="rounded-xl bg-black/10 h-64 flex items-center justify-center">
             <Play size={48} className="text-gray-500" />
+          </div>
+        )}
+
+        {/* Audio */}
+        {post.type === 'audio' && post.audioUrl && (
+          <div className="rounded-xl bg-gradient-to-r from-purple-50 to-indigo-50 p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Music size={24} className="text-purple-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-purple-800">
+                  {post.fileName ? getAudioTypeLabel(post.fileName) : '오디오 파일'}
+                </p>
+                {post.fileName && (
+                  <p className="text-xs text-purple-500 truncate">{post.fileName}</p>
+                )}
+                {post.fileSize && (
+                  <p className="text-xs text-purple-400">{formatFileSize(post.fileSize)}</p>
+                )}
+              </div>
+            </div>
+            <audio controls className="w-full" src={post.audioUrl} preload="metadata" />
           </div>
         )}
 

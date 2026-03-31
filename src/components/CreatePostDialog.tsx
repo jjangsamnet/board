@@ -5,13 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Type, Image, Link, Video, ClipboardPaste, X, Upload, Loader2, FileText, Paperclip } from 'lucide-react';
-import { uploadImageToStorage, uploadFileToStorage, isAllowedFileType, formatFileSize, getFileIcon, getFileTypeLabel, getAcceptString } from '../uploadImage';
+import { Type, Image, Link, Video, ClipboardPaste, X, Upload, Loader2, FileText, Paperclip, Music } from 'lucide-react';
+import { uploadImageToStorage, uploadFileToStorage, uploadAudioToStorage, isAllowedFileType, isAllowedAudioType, formatFileSize, getFileIcon, getFileTypeLabel, getAcceptString, getAudioAcceptString, getAudioIcon, getAudioTypeLabel } from '../uploadImage';
 
 interface CreatePostDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (type: PostType, title: string, content: string, extras?: { imageUrl?: string; linkUrl?: string; videoUrl?: string; fileUrl?: string; fileName?: string; fileSize?: number; fileType?: string }) => void;
+  onSubmit: (type: PostType, title: string, content: string, extras?: { imageUrl?: string; linkUrl?: string; videoUrl?: string; audioUrl?: string; fileUrl?: string; fileName?: string; fileSize?: number; fileType?: string }) => void;
   userId?: string;
 }
 
@@ -28,16 +28,25 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
   const [uploading, setUploading] = useState(false);
   const [pasteHint, setPasteHint] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedAudio, setAttachedAudio] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docFileInputRef = useRef<HTMLInputElement>(null);
+  const audioFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async () => {
-    if (!title.trim() && !content.trim() && !previewImage && !imageUrl.trim() && !attachedFile) return;
+    if (!title.trim() && !content.trim() && !previewImage && !imageUrl.trim() && !attachedFile && !attachedAudio) return;
     setUploading(true);
 
     try {
       let finalImageUrl: string | undefined;
+      let audioUrl: string | undefined;
       let fileExtras: { fileUrl?: string; fileName?: string; fileSize?: number; fileType?: string } = {};
+
+      // If we have an audio file to upload
+      if (attachedAudio && userId) {
+        const result = await uploadAudioToStorage(attachedAudio, userId);
+        audioUrl = result.url;
+      }
 
       // If we have a document file to upload
       if (attachedFile && userId) {
@@ -58,7 +67,9 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
       }
 
       let finalType: PostType = postType;
-      if (fileExtras.fileUrl) {
+      if (audioUrl) {
+        finalType = 'audio';
+      } else if (fileExtras.fileUrl) {
         finalType = 'file';
       } else if (finalImageUrl && postType !== 'link' && postType !== 'video') {
         finalType = 'image';
@@ -68,6 +79,7 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
         imageUrl: finalImageUrl,
         linkUrl: linkUrl.trim() || undefined,
         videoUrl: videoUrl.trim() || undefined,
+        audioUrl: audioUrl || undefined,
         ...fileExtras,
       });
 
@@ -92,10 +104,12 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
     setUploadedFile(null);
     setImageLabel(null);
     setAttachedFile(null);
+    setAttachedAudio(null);
     setPostType('text');
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (docFileInputRef.current) docFileInputRef.current.value = '';
+    if (audioFileInputRef.current) audioFileInputRef.current.value = '';
   };
 
   // Create local preview from file
@@ -135,6 +149,22 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
     setPostType('file');
   }, []);
 
+  // Handle audio file input change
+  const handleAudioFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!isAllowedAudioType(file.name)) {
+      alert('지원하지 않는 오디오 형식입니다.\n지원 형식: MP3, WAV, OGG, AAC, M4A, FLAC, WMA, WebM');
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      alert(`오디오 파일 크기가 20MB를 초과합니다. (현재: ${formatFileSize(file.size)})`);
+      return;
+    }
+    setAttachedAudio(file);
+    setPostType('audio');
+  }, []);
+
   // Handle drag & drop
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -144,6 +174,13 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
     if (file.type.startsWith('image/')) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
       previewFile(file, `${file.name} (${sizeMB}MB)`);
+    } else if (file.type.startsWith('audio/') || isAllowedAudioType(file.name)) {
+      if (file.size > 20 * 1024 * 1024) {
+        alert(`오디오 파일 크기가 20MB를 초과합니다. (현재: ${formatFileSize(file.size)})`);
+        return;
+      }
+      setAttachedAudio(file);
+      setPostType('audio');
     } else if (isAllowedFileType(file.name)) {
       if (file.size > 10 * 1024 * 1024) {
         alert(`파일 크기가 10MB를 초과합니다. (현재: ${formatFileSize(file.size)})`);
@@ -239,11 +276,12 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
     { value: 'text', label: '텍스트', icon: Type },
     { value: 'image', label: '이미지', icon: Image },
     { value: 'file', label: '파일', icon: FileText },
+    { value: 'audio', label: '오디오', icon: Music },
     { value: 'link', label: '링크', icon: Link },
     { value: 'video', label: '동영상', icon: Video },
   ] as const;
 
-  const hasContent = title.trim() || content.trim() || previewImage || imageUrl.trim() || attachedFile;
+  const hasContent = title.trim() || content.trim() || previewImage || imageUrl.trim() || attachedFile || attachedAudio;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { resetForm(); onClose(); } }}>
@@ -269,7 +307,7 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
         </DialogHeader>
 
         <Tabs value={postType} onValueChange={(v) => setPostType(v as PostType)} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 h-9">
+          <TabsList className="grid w-full grid-cols-6 h-9">
             {tabs.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} className="text-xs flex items-center gap-1">
                 <tab.icon size={14} />
@@ -398,6 +436,55 @@ export function CreatePostDialog({ open, onClose, onSubmit, userId }: CreatePost
                       </p>
                     </div>
                   </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="audio" className="mt-0 space-y-2">
+              {!attachedAudio ? (
+                <>
+                  <div
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-purple-400 hover:bg-purple-50/30 transition-colors cursor-pointer"
+                    onClick={() => audioFileInputRef.current?.click()}
+                  >
+                    <Music size={24} className="mx-auto text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 font-medium">오디오 파일 선택</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      클릭하여 선택하거나, 다이얼로그에 드래그 앤 드롭
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      MP3, WAV, OGG, AAC, M4A, FLAC, WMA, WebM (최대 20MB)
+                    </p>
+                  </div>
+                  <input
+                    ref={audioFileInputRef}
+                    type="file"
+                    accept={getAudioAcceptString()}
+                    onChange={handleAudioFileSelect}
+                    className="hidden"
+                  />
+                </>
+              ) : (
+                <div className="relative border rounded-lg p-3 bg-white/80">
+                  <button
+                    onClick={() => {
+                      setAttachedAudio(null);
+                      if (audioFileInputRef.current) audioFileInputRef.current.value = '';
+                    }}
+                    className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
+                  >
+                    <X size={14} />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{getAudioIcon()}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-800 truncate">{attachedAudio.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {getAudioTypeLabel(attachedAudio.name)} · {formatFileSize(attachedAudio.size)}
+                      </p>
+                    </div>
+                  </div>
+                  <audio controls className="w-full mt-2 h-10" src={URL.createObjectURL(attachedAudio)} />
                 </div>
               )}
             </TabsContent>

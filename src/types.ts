@@ -1,4 +1,4 @@
-export type PostType = 'text' | 'image' | 'link' | 'video' | 'file';
+export type PostType = 'text' | 'image' | 'link' | 'video' | 'audio' | 'file';
 export type LayoutMode = 'wall' | 'grid' | 'stream';
 export type ReactionType = '👍' | '❤️' | '⭐' | '😄';
 
@@ -27,6 +27,7 @@ export interface Post {
   fileName?: string;
   fileSize?: number;
   fileType?: string;
+  audioUrl?: string;
   imageRotation?: number;
   author: string;
   color: string;

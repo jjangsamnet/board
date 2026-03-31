@@ -290,7 +290,7 @@ export function useBoard(boardId: string, currentUser: string = '익명') {
     }
   }, [boardId]);
 
-  const addPost = useCallback(async (type: PostType, title: string, content: string, extras?: { imageUrl?: string; linkUrl?: string; videoUrl?: string; fileUrl?: string; fileName?: string; fileSize?: number; fileType?: string }) => {
+  const addPost = useCallback(async (type: PostType, title: string, content: string, extras?: { imageUrl?: string; linkUrl?: string; videoUrl?: string; audioUrl?: string; fileUrl?: string; fileName?: string; fileSize?: number; fileType?: string }) => {
     console.log('[addPost] 호출됨:', { type, title, content, hasBoard: !!board, currentUser });
     if (!board) {
       console.error('[addPost] board가 null입니다!');
