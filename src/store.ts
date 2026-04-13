@@ -13,6 +13,8 @@ import {
   query,
   orderBy,
   writeBatch,
+  updateDoc,
+  arrayUnion,
 } from 'firebase/firestore';
 
 function generateId(): string {
@@ -398,6 +400,19 @@ export async function ensureUserProfile(uid: string, email: string, displayName:
     };
     await setDoc(userRef, removeUndefined({ ...newProfile } as unknown as Record<string, unknown>));
     return newProfile;
+  }
+}
+
+// 사용자가 보드에 접속하면 joinedBoards에 기록
+export async function joinBoard(uid: string, boardId: string) {
+  if (!uid || !boardId) return;
+  try {
+    const userRef = doc(db, USERS_COLLECTION, uid);
+    await updateDoc(userRef, {
+      joinedBoards: arrayUnion(boardId),
+    });
+  } catch (error) {
+    console.error('[joinBoard] 참여 보드 기록 실패:', error);
   }
 }
 

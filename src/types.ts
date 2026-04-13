@@ -66,6 +66,7 @@ export interface UserProfile {
   photoURL?: string;
   role: UserRole;
   maxBoards: number;
+  joinedBoards?: string[]; // 참여한 보드 ID 목록
   createdAt: string;
   lastLoginAt: string;
 }

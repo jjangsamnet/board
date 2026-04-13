@@ -9,10 +9,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Trash2, LayoutGrid, Clock, FileText, LogOut, Shield } from 'lucide-react';
+import { Plus, Trash2, LayoutGrid, Clock, FileText, LogOut, Shield, Users } from 'lucide-react';
 
 interface DashboardProps {
   boards: Board[];
+  joinedBoards?: Board[];
   onCreateBoard: (title: string, description: string) => string | Promise<string>;
   onDeleteBoard: (boardId: string) => void;
   onOpenBoard: (boardId: string) => void;
@@ -29,6 +30,7 @@ interface DashboardProps {
 
 export function Dashboard({
   boards,
+  joinedBoards = [],
   onCreateBoard,
   onDeleteBoard,
   onOpenBoard,
@@ -241,6 +243,55 @@ export function Dashboard({
               ))}
             </div>
           </>
+        )}
+
+        {/* 참여 보드 섹션 */}
+        {joinedBoards.length > 0 && (
+          <div className="mt-10">
+            <div className="flex items-center gap-2 mb-6">
+              <Users size={16} className="text-gray-400" />
+              <h2 className="text-sm font-medium text-gray-500">참여 보드</h2>
+              <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full">{joinedBoards.length}개</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {joinedBoards.map((board, idx) => (
+                <div
+                  key={board.id}
+                  className="group relative bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer"
+                  onClick={() => onOpenBoard(board.id)}
+                >
+                  {/* Color header */}
+                  <div className={`h-24 bg-gradient-to-br ${BOARD_COLORS[(idx + 3) % BOARD_COLORS.length]} relative`}>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-3xl opacity-60">{board.title.match(/\p{Emoji}/u)?.[0] || '📌'}</span>
+                    </div>
+                    {/* 참여 배지 */}
+                    <div className="absolute top-2 left-2 bg-white/90 text-emerald-600 text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Users size={10} />
+                      참여 중
+                    </div>
+                  </div>
+                  {/* Board info */}
+                  <div className="p-4">
+                    <h3 className="font-semibold text-gray-900 text-sm truncate">{board.title}</h3>
+                    {board.description && (
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{board.description}</p>
+                    )}
+                    <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
+                      <span className="flex items-center gap-1">
+                        <FileText size={12} />
+                        {board.postCount ?? board.posts.length}개 포스트
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock size={12} />
+                        {timeAgo(board.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </main>
 

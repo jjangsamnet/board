@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { BoardSettings } from './types';
-import { useBoardManager, useBoard, useUserProfile, ensureUserProfile } from './store';
+import { useBoardManager, useBoard, useUserProfile, ensureUserProfile, joinBoard } from './store';
 import { useAuth } from './useAuth';
 import { Dashboard } from './components/Dashboard';
 import { BoardHeader } from './components/BoardHeader';
@@ -169,6 +169,7 @@ export default function App() {
       userEmail={userEmail}
       isAdmin={isAdminUser}
       maxBoards={maxBoards}
+      joinedBoardIds={profile?.joinedBoards || []}
       onLogout={logout}
     />
   );
@@ -183,6 +184,7 @@ function DashboardPage({
   userEmail,
   isAdmin,
   maxBoards,
+  joinedBoardIds,
   onLogout,
 }: {
   onOpenBoard: (id: string) => void;
@@ -192,6 +194,7 @@ function DashboardPage({
   userEmail: string;
   isAdmin: boolean;
   maxBoards: number;
+  joinedBoardIds: string[];
   onLogout: () => void;
 }) {
   const { boards, loading, createBoard, deleteBoard } = useBoardManager();
@@ -200,6 +203,9 @@ function DashboardPage({
   const myBoards = boards.filter(b => b.ownerEmail === userEmail);
   const myBoardCount = myBoards.length;
   const canCreateBoard = myBoardCount < maxBoards;
+
+  // 참여 보드: 내가 만든 것이 아닌데 joinedBoardIds에 포함된 보드
+  const joinedBoards = boards.filter(b => b.ownerEmail !== userEmail && joinedBoardIds.includes(b.id));
 
   if (loading) {
     return (
@@ -224,6 +230,7 @@ function DashboardPage({
     <>
       <Dashboard
         boards={boards}
+        joinedBoards={joinedBoards}
         onCreateBoard={handleCreateBoard}
         onDeleteBoard={deleteBoard}
         onOpenBoard={onOpenBoard}
@@ -265,6 +272,13 @@ function BoardPage({
   const { board, loading, addPost, deletePost, toggleReaction, addComment, updatePost, updateBoard } = useBoard(boardId, userName);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
+
+  // 보드 접속 시 참여 기록
+  useEffect(() => {
+    if (board && userId) {
+      joinBoard(userId, boardId);
+    }
+  }, [board, userId, boardId]);
 
   if (loading) {
     return (
